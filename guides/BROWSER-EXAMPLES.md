@@ -102,6 +102,48 @@ await browser_take_screenshot()
 // Saved as: e2e/screenshots/search/initial.desktop.png
 ```
 
+### Returning to Desktop (Reset Mobile Emulation)
+
+**⚠️ IMPORTANT**: After using Option B mobile emulation, you MUST reset before capturing desktop views. Route handlers and init scripts persist until explicitly cleared.
+
+```javascript
+// Reset desktop UserAgent and clear mobile emulation
+await browser_run_code({
+  code: `async (page) => {
+    const desktopUA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+    // 1. Remove ALL route handlers (clears mobile UA header interception)
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+
+    // 2. Override JavaScript navigator properties back to desktop
+    await page.addInitScript(\`
+      Object.defineProperty(navigator, 'userAgent', {
+        get: () => '\${desktopUA}'
+      });
+      Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 });
+      Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
+    \`);
+
+    // 3. Reload to apply changes
+    await page.reload({ waitUntil: 'networkidle' });
+  }`
+})
+
+// Now resize to desktop dimensions
+await browser_resize({ width: 1280, height: 800 })
+
+// Capture clean desktop state
+const desktopSnapshot = await browser_snapshot()
+await browser_take_screenshot()
+```
+
+**Why this is necessary:**
+
+- `page.route()` handlers persist across navigations and resizes
+- `addInitScript()` scripts run on EVERY page load until the context is closed
+- Simply resizing to 1280x800 does NOT remove mobile UA or touch emulation
+- Without reset, server continues receiving mobile User-Agent in HTTP headers
+
 ### Mobile View - Option A (Native Emulation)
 
 **One-time setup** in MCP config (e.g., `claude_desktop_config.json`):
@@ -529,7 +571,19 @@ async function exploreSearchPage(config) {
 
   // 3. EXPLORE STATES (device-agnostic, done once)
 
-  // Reset to desktop for exploration
+  // Reset to desktop for exploration (clear mobile emulation if used)
+  await browser_run_code({
+    code: `async (page) => {
+      const desktopUA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      await page.unrouteAll({ behavior: 'ignoreErrors' });
+      await page.addInitScript(\`
+        Object.defineProperty(navigator, 'userAgent', { get: () => '\${desktopUA}' });
+        Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 });
+        Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
+      \`);
+      await page.reload({ waitUntil: 'networkidle' });
+    }`
+  })
   await browser_resize({width: 1280, height: 800})
 
   const states = []
