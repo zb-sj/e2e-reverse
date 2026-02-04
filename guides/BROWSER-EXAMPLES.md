@@ -132,31 +132,47 @@ See [setup.md Step 4](../setup.md) for detailed MCP configuration instructions.
 **No setup required** - works immediately:
 
 ```javascript
-// 1. Resize viewport
+// 1. Resize viewport FIRST
 await browser_resize({ width: 390, height: 844 })
 
-// 2. Inject mobile emulation BEFORE navigating
+// 2. Set up route interception + init scripts + reload
 await browser_run_code({
   code: `async (page) => {
-    await page.addInitScript(() => {
+    const mobileUA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+
+    // 1. Intercept ALL requests and override User-Agent HTTP header
+    await page.route('**/*', route => {
+      const headers = {
+        ...route.request().headers(),
+        'user-agent': mobileUA
+      };
+      route.continue({ headers });
+    });
+
+    // 2. Override JavaScript navigator properties for client-side checks
+    await page.addInitScript(\`
       Object.defineProperty(navigator, 'userAgent', {
-        get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15'
+        get: () => '\${mobileUA}'
       });
       Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 });
       Object.defineProperty(navigator, 'platform', { get: () => 'iPhone' });
-    });
+    \`);
+
+    // 3. Reload - route handler modifies HTTP headers, init script runs on load
+    await page.reload({ waitUntil: 'networkidle' });
   }`
 })
 
-// 3. Navigate (init scripts apply)
-await browser_navigate({ url: target_url })
-
-// 4. Capture
+// 3. Capture (both HTTP headers and JS properties are now mobile)
 const mobileSnapshot = await browser_snapshot()
 await browser_take_screenshot()
 ```
 
-**⚠️ Timing**: `addInitScript()` must run BEFORE navigation. If page already loaded, call `browser_navigate()` again to apply scripts.
+**⚠️ Why both `page.route()` AND `addInitScript()` are needed**:
+
+- `page.route()` intercepts HTTP requests BEFORE they're sent → server sees mobile UA
+- `addInitScript()` overrides JS `navigator.userAgent` → client-side code sees mobile UA
+- Without `page.route()`, the server receives desktop UA and may return desktop HTML
 
 ### Compare Device Differences
 

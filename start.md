@@ -263,24 +263,42 @@ For each feature, document:
      - `browser_take_screenshot` → screenshot_dir/{feature}/initial.desktop.png
 
    **Mobile/tablet devices (best-effort emulation):**
-     - Inject emulation scripts BEFORE navigating:
+     - `browser_resize` to device dimensions FIRST (e.g., 390x844)
+     - Set up route interception + init scripts + reload in one call:
+
        ```javascript
        await browser_run_code({
          code: `async (page) => {
-           await page.addInitScript(() => {
+           const mobileUA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+
+           // 1. Intercept ALL requests and override User-Agent HTTP header
+           await page.route('**/*', route => {
+             const headers = {
+               ...route.request().headers(),
+               'user-agent': mobileUA
+             };
+             route.continue({ headers });
+           });
+
+           // 2. Override JavaScript navigator properties
+           await page.addInitScript(\\\`
              Object.defineProperty(navigator, 'userAgent', {
-               get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
+               get: () => '\${mobileUA}'
              });
              Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 });
              Object.defineProperty(navigator, 'platform', { get: () => 'iPhone' });
-           });
-           await page.emulateMedia({ media: 'screen' });
+           \\\`);
+
+           // 3. Reload - route handler modifies HTTP headers, init script runs on load
+           await page.reload({ waitUntil: 'networkidle' });
          }`
        })
        ```
-     - `browser_resize` to device dimensions (e.g., 390x844)
-     - `browser_snapshot` → store as mobile_snapshot
+
+     - `browser_snapshot` → store as mobile_snapshot (HTTP + JS both mobile now)
      - `browser_take_screenshot` → screenshot_dir/{feature}/initial.mobile.png
+
+     **⚠️ Why both `page.route()` AND `addInitScript()`**: `page.route()` intercepts HTTP requests (server sees mobile UA), `addInitScript()` overrides JS properties (client-side code sees mobile UA). Both are needed.
 
    **What works with best-effort emulation:**
    - ✅ JavaScript checks (navigator.userAgent, maxTouchPoints, window.innerWidth)
