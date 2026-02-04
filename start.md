@@ -180,9 +180,22 @@ For detailed instructions, read these files from the skill directory:
 
 ### Core Loop Summary
 
-1. NAVIGATE → 2. CAPTURE (all devices) → 3. EXPLORE states → 4. ANALYZE differences → 5. DOCUMENT Gherkin → 6. VALIDATE → 7. UPDATE state → 8. SELECT next page
+1. NAVIGATE → 2. CAPTURE (all devices) → 3. EXPLORE states → 4. ANALYZE differences → 5. DOCUMENT Gherkin → 6. VALIDATE → 7. UPDATE state → 8. SELECT next page → **IMMEDIATELY CONTINUE TO NEXT ITERATION**
+
+**⚠️ CRITICAL: DO NOT PAUSE BETWEEN ITERATIONS**
+- After step 8, immediately start the next iteration
+- NEVER output "I will continue..." and stop
+- Continue until max_iterations reached
 
 **For detailed steps including mobile emulation code**: Read `{skill_dir}/start.md` section "Core Loop"
+
+### State Persistence (CRITICAL)
+
+Write state to BOTH locations after each significant action:
+- **Primary**: `.claude/ralph-loop.local.md`
+- **Backup**: `{output_dir}/.ralph-state.md`
+
+On resume, check backup if primary is missing.
 
 ### Mobile Emulation (CRITICAL)
 
@@ -493,16 +506,114 @@ For each feature, document:
 
 8. **VERIFY** - Re-read spec, ask "Could I rebuild this?"
 
-9. **UPDATE STATE** - Batched state writes (auto-checkpointing)
-   - Update `.claude/ralph-loop.local.md` with:
-     - quality_score (based on coverage)
-     - coverage analysis (states/devices/roles covered vs missing)
-     - scenario metadata
-   - State written every N iterations (config: `performance.state_file_write_interval`)
-   - Auto-checkpoint when page reaches target quality (config: `checkpoint_on_page_complete`)
-   - Use `/e2e-reverse _write-checkpoint` utility for atomic writes
+9. **UPDATE STATE** - Incremental writes with verification (CRITICAL FOR PERSISTENCE)
+
+   **⚠️ WRITE STATE IMMEDIATELY AFTER EACH SIGNIFICANT ACTION** - Do not batch writes!
+
+   Ralph MUST write state incrementally to prevent data loss:
+
+   **When to write state**:
+   - ✅ After navigating to a new page (before any exploration)
+   - ✅ After capturing screenshots for each device
+   - ✅ After writing/updating a feature file
+   - ✅ After completing validation
+   - ✅ Before selecting the next page
+
+   **Primary state file**: `.claude/ralph-loop.local.md`
+   **Backup state file**: `{output_dir}/.ralph-state.md` (inside output directory - more resilient)
+
+   **Incremental Write Pattern**:
+
+   ```pseudocode
+   function writeStateWithVerification(state_data) {
+     primary_path = ".claude/ralph-loop.local.md"
+     backup_path = config.output_dir + "/.ralph-state.md"
+
+     // 1. Write to BOTH locations
+     write_file(primary_path, state_data)
+     write_file(backup_path, state_data)
+
+     // 2. Verify primary write succeeded
+     read_back = read_file(primary_path)
+     if (read_back != state_data) {
+       log_warning("Primary state write verification failed!")
+       // Backup still exists in output_dir
+     }
+
+     // 3. Log checkpoint
+     log_info("State saved: iteration {iteration}, page {current_page}")
+   }
+   ```
+
+   **State file contents**:
+   - iteration: current iteration number
+   - status: running | paused | completed
+   - quality_score (based on coverage)
+   - coverage analysis (states/devices/roles covered vs missing)
+   - scenario metadata
+   - visit_history with timestamps
+
+   **Recovery on resume**:
+   - First check `.claude/ralph-loop.local.md`
+   - If missing or corrupted, fall back to `{output_dir}/.ralph-state.md`
+   - If both missing, start fresh from iteration 1
 
 10. **REPEAT** - Select next page until complete
+
+## ⚠️ CRITICAL: Continuous Execution (DO NOT PAUSE)
+
+**Ralph MUST continue iterating without stopping.** This is a BLOCKING REQUIREMENT.
+
+After completing step 9 (UPDATE STATE), Ralph MUST:
+
+1. **Immediately** proceed to select the next page (step 10)
+2. **Immediately** start the next iteration (back to step 1: RESET or step 2: NAVIGATE)
+3. **NEVER** output "I will continue in the next iteration" and stop
+4. **NEVER** wait for user input between iterations
+5. **NEVER** end the turn with a summary of what was done
+
+**Wrong behavior** (causes session to end):
+
+```text
+✗ "Iteration 1 complete. I will continue in the next iteration."
+✗ [Claude stops and waits]
+```
+
+**Correct behavior** (continuous execution):
+
+```text
+✓ "Iteration 1 complete. Proceeding to iteration 2."
+✓ [Claude immediately selects next page and starts NAVIGATE step]
+```
+
+**Iteration Loop Pattern**:
+
+```pseudocode
+while (current_iteration <= max_iterations) {
+  // Execute steps 1-9
+  navigate_to_page()
+  capture_all_devices()
+  explore_states()
+  analyze_differences()
+  document_gherkin()
+  validate_and_reflect()
+  verify_spec()
+  update_state()  // CRITICAL: Write state BEFORE moving to next iteration
+
+  // Step 10: Select next page
+  next_page = select_next_page_by_score()
+  current_iteration++
+
+  // DO NOT STOP HERE - immediately continue the loop
+  // NO user output like "will continue..."
+  // NO waiting for input
+}
+
+// Only stop when loop completes
+output("<promise>E2E_COMPLETE</promise>")
+```
+
+**Why this matters**: If Ralph outputs "I will continue..." and stops, the session may be terminated, crunched (summarized), or the state file may be lost. Continuous execution ensures all iterations complete within a single session.
 
 **Performance Impact**:
 - Before: 3 devices × (1 nav + 1 snapshot + 1 screenshot + explore + document) = 15+ operations
@@ -835,7 +946,12 @@ final_score = weighted_score + random_factor
 
 ## State Tracking
 
-Ralph tracks progress in `.claude/ralph-loop.local.md` with:
+Ralph tracks progress in TWO locations for resilience:
+
+1. **Primary**: `.claude/ralph-loop.local.md` (may be lost if session is crunched)
+2. **Backup**: `{output_dir}/.ralph-state.md` (inside git-tracked directory - more resilient)
+
+**On session start**, Ralph checks both locations and uses the most recent valid state.
 
 **Key fields**:
 - `status`: running | paused | stopped | completed

@@ -113,10 +113,11 @@ e2e-reverse/
 **Generated files:**
 
 - `{output_dir}/*.feature` - Gherkin specifications (one per feature)
+- `{output_dir}/.ralph-state.md` - **Backup state file** (resilient - inside git-tracked directory)
 - `{screenshot_dir}/{feature}/{name}[.{device}].png` - Screenshots organized by feature
   - Device-agnostic: `search/initial.png`
   - Device-specific: `search/initial.desktop.png`, `search/initial.mobile.png`
-- `.claude/ralph-loop.local.md` - Session state tracking
+- `.claude/ralph-loop.local.md` - Primary session state tracking (may be lost if session crunched)
 - `.claude/e2e-reverse-report.{format}` - Final report (markdown/json/html)
 
 ## Documentation

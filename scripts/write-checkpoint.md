@@ -21,8 +21,9 @@ Takes:
 
 ## Actions
 
-1. **Update state file atomically**
-   - Edit `.claude/ralph-loop.local.md`
+1. **Update state files atomically (BOTH locations)**
+   - **Primary**: Edit `.claude/ralph-loop.local.md`
+   - **Backup**: Edit `{output_dir}/.ralph-state.md` (more resilient - inside git-tracked directory)
    - Update session status, iteration, coverage
    - Preserve all visit_history data
    - Use atomic write (write to temp, then rename)
@@ -32,8 +33,9 @@ Takes:
    - Include timestamp, progress, summary
 
 3. **Verify writes succeeded**
-   - Read back both files to confirm
-   - If either write failed, rollback and return error
+   - Read back ALL THREE files to confirm
+   - If primary write failed but backup succeeded, log warning but continue
+   - If both state writes failed, return error
 
 ## Checkpoint File Format
 
@@ -85,11 +87,12 @@ Ralph will automatically detect and resume from this checkpoint.
 To prevent corruption if interrupted:
 
 1. **Write to temporary files**:
-   - `.claude/ralph-loop.local.md.tmp`
+   - `.claude/ralph-loop.local.md.tmp` (primary)
+   - `{output_dir}/.ralph-state.md.tmp` (backup)
    - `.claude/e2e-reverse-checkpoint.md.tmp`
 
 2. **Verify writes succeeded**:
-   - Check both temp files exist
+   - Check all temp files exist
    - Check file sizes > 0
    - Parse YAML to ensure valid
 
@@ -97,9 +100,19 @@ To prevent corruption if interrupted:
    - Rename `.tmp` files to actual files
    - Filesystem guarantees atomicity of rename operation
    - If rename fails, temp files remain for debugging
+   - **Write backup FIRST** (to output_dir) - this is more resilient
 
 4. **Cleanup on success**:
    - Remove any stale `.tmp` files
+
+## State Recovery on Resume
+
+When starting a session, check for existing state in this order:
+
+1. **Primary**: `.claude/ralph-loop.local.md`
+2. **Backup**: `{output_dir}/.ralph-state.md`
+
+Use whichever has the higher iteration number (more recent). If both are missing, start fresh.
 
 ## Usage Example
 

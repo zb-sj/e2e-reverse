@@ -59,9 +59,11 @@ Session object with:
 
 ## Actions
 
-1. **Read state file**
-   - Read `.claude/ralph-loop.local.md`
-   - Handle missing file gracefully
+1. **Read state files (with fallback)**
+   - **First**, try to read `.claude/ralph-loop.local.md` (primary)
+   - **If missing**, try to read `{output_dir}/.ralph-state.md` (backup)
+   - **If both exist**, use the one with higher iteration number (more recent)
+   - Handle missing files gracefully
 
 2. **Parse YAML frontmatter**
    - Extract session state
@@ -81,7 +83,7 @@ Session object with:
 
 ## Error Handling
 
-**Missing file**:
+**Missing files** (both primary and backup):
 ```yaml
 {
   validation: {
@@ -92,13 +94,24 @@ Session object with:
 }
 ```
 
+**Primary missing but backup found**:
+```yaml
+{
+  validation: {
+    valid: true,
+    message: "Primary state file missing. Recovered from backup.",
+    source: "backup"
+  }
+}
+```
+
 **Corrupted file**:
 ```yaml
 {
   validation: {
     valid: false,
     message: "State file is corrupted or invalid.",
-    suggestion: "Delete `.claude/ralph-loop.local.md` and run `/e2e-reverse start` to begin fresh."
+    suggestion: "Delete `.claude/ralph-loop.local.md` and `{output_dir}/.ralph-state.md`, then run `/e2e-reverse start` to begin fresh."
   }
 }
 ```
@@ -130,4 +143,8 @@ Otherwise:
 
 ## Implementation
 
-Now read `.claude/ralph-loop.local.md`, parse it, validate it, and return the normalized session object.
+1. First, load config to get `output_dir` for backup path
+2. Try to read `.claude/ralph-loop.local.md` (primary)
+3. If primary missing, try to read `{output_dir}/.ralph-state.md` (backup)
+4. If both exist, compare iteration numbers and use the higher one
+5. Parse YAML frontmatter, validate, and return the normalized session object
