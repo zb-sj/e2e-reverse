@@ -8,6 +8,18 @@ argument-hint: "[https://example.com] [--max-iterations 15]"
 
 **CRITICAL: Follow these steps IN ORDER before doing anything else:**
 
+## Table of Contents
+
+- [Step 1: Check Config File](#step-1-check-config-file-blocking-requirement)
+- [Step 2: Parse Command Arguments](#step-2-parse-command-arguments)
+- [Step 3: Load Playwright MCP Tools](#step-3-load-playwright-mcp-tools-blocking-requirement)
+- [Step 4: Mobile Device Configuration](#step-4-mobile-device-configuration-info-only)
+- [Step 5: Load Reference Documentation](#step-5-load-reference-documentation-blocking-requirement)
+- [Step 6: Start Ralph Loop](#step-6-start-ralph-loop)
+- [Error Recovery](#error-recovery-critical---2026-best-practice)
+- [File Management Strategy](#file-management-strategy)
+- [Completion Criteria](#completion-criteria)
+
 ## Step 1: Check Config File (BLOCKING REQUIREMENT)
 
 Read the config file at `.claude/e2e-reverse.config.md`.
@@ -161,8 +173,8 @@ For detailed instructions, read these files from the skill directory:
 | `{skill_dir}/start.md` | **Core Loop**, mobile emulation, error recovery, page selection | Every iteration |
 | `{skill_dir}/references/REFERENCE.md` | Gherkin conventions, tag system, state file structure | First iteration |
 | `{skill_dir}/references/FORMULAS.md` | Quality scoring algorithms | When calculating scores |
-| `{skill_dir}/guides/GHERKIN-BEST-PRACTICES.md` | Background, Scenario Outline patterns | When writing features |
-| `{skill_dir}/guides/BROWSER-EXAMPLES.md` | Playwright selector strategy, mobile emulation code | When interacting with browser |
+| `{skill_dir}/references/GHERKIN-BEST-PRACTICES.md` | Background, Scenario Outline patterns | When writing features |
+| `{skill_dir}/references/BROWSER-EXAMPLES.md` | Playwright selector strategy, mobile emulation code | When interacting with browser |
 
 **Skill directory**: `{skill_dir}`
 
@@ -364,12 +376,12 @@ For each feature, document:
      - Extract common preconditions into Background section
      - Place Background after Feature description, before first Rule
      - Example detection: If 3+ scenarios start with "Given user is logged in", extract to Background
-     - See [guides/GHERKIN-BEST-PRACTICES.md](guides/GHERKIN-BEST-PRACTICES.md) lines 40-75 for examples
+     - See [references/GHERKIN-BEST-PRACTICES.md](references/GHERKIN-BEST-PRACTICES.md) lines 40-75 for examples
    - **Scenario Outline for data-driven tests** (reduces duplication - 2026 best practice):
      - Detect repetitive scenarios: 3+ scenarios with identical structure but different data
      - Convert to Scenario Outline with Examples table
      - Example detection: "Search Seoul", "Search Busan", "Search Incheon" → Scenario Outline
-     - See [guides/GHERKIN-BEST-PRACTICES.md](guides/GHERKIN-BEST-PRACTICES.md) lines 77-108 for patterns
+     - See [references/GHERKIN-BEST-PRACTICES.md](references/GHERKIN-BEST-PRACTICES.md) lines 77-108 for patterns
 
    **Background Detection Helper**:
    ```pseudocode
@@ -801,7 +813,7 @@ visit_history:
         notes: "Fixed device tagging, converted to declarative style"
 ```
 
-**See also**: [guides/ERROR-RECOVERY.md](guides/ERROR-RECOVERY.md) for comprehensive recovery strategies.
+**See also**: [references/ERROR-RECOVERY.md](references/ERROR-RECOVERY.md) for comprehensive recovery strategies.
 
 ## File Management Strategy
 

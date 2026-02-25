@@ -77,4 +77,4 @@ For detailed documentation:
 - **Gherkin conventions & tag system**: [references/REFERENCE.md](references/REFERENCE.md)
 - **Quality scoring algorithms**: [references/FORMULAS.md](references/FORMULAS.md)
 - **Report templates**: [references/REPORTING.md](references/REPORTING.md)
-- **Step-by-step guide**: [QUICKSTART.md](QUICKSTART.md)
+- **Step-by-step guide**: Run `/e2e-reverse setup` then `/e2e-reverse start`

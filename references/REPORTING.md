@@ -2,6 +2,14 @@
 
 Consolidated report templates for status, export, validation, and checkpoint commands.
 
+## Table of Contents
+
+- [Status Report Template](#status-report-template)
+- [Export Report Templates](#export-report-templates)
+- [Validation Report Template](#validation-report-template)
+- [Checkpoint Report Template](#checkpoint-report-template)
+- [Usage Guidelines](#usage-guidelines)
+
 ---
 
 ## Status Report Template

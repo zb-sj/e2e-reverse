@@ -2,6 +2,14 @@
 
 How Ralph handles errors and recovers from common issues during reverse engineering.
 
+## Table of Contents
+
+- [Philosophy](#philosophy)
+- [Common Errors and Recovery Strategies](#common-errors-and-recovery-strategies)
+- [Error Logging Strategy](#error-logging-strategy)
+- [When to Give Up](#when-to-give-up)
+- [Summary](#summary)
+
 ## Philosophy
 
 Ralph is designed to be resilient. When errors occur, Ralph should:

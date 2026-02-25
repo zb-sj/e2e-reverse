@@ -2,6 +2,19 @@
 
 Practical examples of using Playwright MCP tools for reverse engineering web apps.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Basic Page Exploration](#basic-page-exploration)
+- [Device-Specific Capture](#device-specific-capture)
+- [Interaction Patterns](#interaction-patterns)
+- [State Discovery Workflow](#state-discovery-workflow)
+- [Complete Page Exploration Example](#complete-page-exploration-example)
+- [Helper Functions](#helper-functions)
+- [Error Handling](#error-handling)
+- [Performance Tips](#performance-tips)
+- [Integration with Ralph Loop](#integration-with-ralph-loop)
+
 ## Overview
 
 Ralph uses Playwright MCP Server to interact with your web app. This guide shows concrete examples of how to navigate, capture, and analyze pages.

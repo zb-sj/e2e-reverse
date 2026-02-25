@@ -41,8 +41,7 @@ e2e-reverse/
 │   ├── write-checkpoint.md
 │   └── validate-gherkin.md
 ├── assets/templates/       # Example Gherkin features
-├── guides/                 # Human-readable documentation
-└── references/             # Agent execution reference
+└── references/             # Documentation and agent execution reference
     ├── REFERENCE.md        # Conventions, tags, config
     ├── REPORTING.md        # Report templates
     └── FORMULAS.md         # Scoring algorithms
@@ -433,8 +432,6 @@ Adjust `max_iterations` based on observed quality scores.
 - Consistent quality scoring across commands
 - Easier maintenance via shared utilities
 
-See [CHANGELOG.md](../CHANGELOG.md) for detailed version history.
-
 ---
 
 ## Multi-Agent Architecture (2026 Vision)
@@ -608,4 +605,4 @@ These remain design considerations, not committed roadmap items.
 
 ---
 
-*For operational usage, see [README.md](../README.md) or run `/e2e-reverse help`*
+*For operational usage, run `/e2e-reverse help`*

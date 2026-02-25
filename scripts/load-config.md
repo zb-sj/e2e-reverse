@@ -11,7 +11,7 @@ Internal utility for loading and validating E2E reverse engineering configuratio
 
 ## Purpose
 
-Eliminates duplicate config loading logic in start.md, resume.md, validate.md, export.md, and other commands.
+Eliminates duplicate config loading logic in start.md, export.md, status.md, and other commands.
 
 ## Returns
 

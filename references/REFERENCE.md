@@ -2,6 +2,20 @@
 
 Complete documentation for element detection, Gherkin conventions, and coverage metrics.
 
+## Table of Contents
+
+- [Element Detection Patterns](#element-detection-patterns)
+- [Standard State Definitions](#standard-state-definitions)
+- [Gherkin Conventions](#gherkin-conventions)
+- [Coverage Metrics](#coverage-metrics)
+- [Config File Reference](#config-file-reference)
+- [Domain](#domain)
+- [Key Entities](#key-entities)
+- [Terminology](#terminology)
+- [Business Rules](#business-rules)
+- [State File Reference](#state-file-reference)
+- [Playwright MCP Tools Reference](#playwright-mcp-tools-reference)
+
 ## Element Detection Patterns
 
 Use these selectors to identify interactive elements in browser snapshots:
