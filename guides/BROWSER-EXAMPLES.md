@@ -104,45 +104,111 @@ await browser_take_screenshot()
 
 ### Returning to Desktop (Reset Mobile Emulation)
 
-**⚠️ IMPORTANT**: After using Option B mobile emulation, you MUST reset before capturing desktop views. Route handlers and init scripts persist until explicitly cleared.
+**⚠️ IMPORTANT**: After using Option B mobile emulation, you MUST reset before capturing desktop views. `addInitScript()` permanently stacks scripts that cannot be removed—the only guaranteed reset is closing the browser.
+
+#### Robust Method (Recommended)
+
+Close browser and navigate fresh. **Important:** Store the URL when you first navigate, not when resetting.
 
 ```javascript
-// Reset desktop UserAgent and clear mobile emulation
+// AT START OF WORKFLOW: Store the URL
+// const targetUrl = "https://example.com/search"
+// await browser_navigate({ url: targetUrl })
+
+// WHEN RESETTING TO DESKTOP:
+// 1. Close browser (clears ALL state: routes, init scripts, everything)
+await browser_close()
+
+// 2. Navigate to stored URL (fresh browser, no emulation)
+await browser_navigate({ url: targetUrl })  // Use the URL you stored earlier
+
+// 3. Resize to desktop
+await browser_resize({ width: 1280, height: 800 })
+
+// 4. Verify UA is correct (optional debug step)
+await browser_run_code({
+  code: `async (page) => {
+    const ua = await page.evaluate(() => navigator.userAgent);
+    console.log('Current UA:', ua);
+    return { userAgent: ua };
+  }`
+})
+
+// 5. Capture
+const desktopSnapshot = await browser_snapshot()
+```
+
+**Key points:**
+
+- Store the URL at workflow start—don't try to capture it when resetting
+- `browser_close()` destroys the entire browser context including all stacked init scripts
+- `browser_navigate()` spawns a fresh browser with default UA
+
+#### In-Page Reset (No Browser Restart)
+
+This method keeps the browser open but overrides mobile settings. Less reliable but faster:
+
+```javascript
 await browser_run_code({
   code: `async (page) => {
     const desktopUA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-    // 1. Remove ALL route handlers (clears mobile UA header interception)
+    // 1. Clear route handlers (stops HTTP header interception)
     await page.unrouteAll({ behavior: 'ignoreErrors' });
 
-    // 2. Override JavaScript navigator properties back to desktop
+    // 2. Force desktop UA via init script (stacks on top of mobile script)
     await page.addInitScript(\`
-      Object.defineProperty(navigator, 'userAgent', {
-        get: () => '\${desktopUA}'
-      });
+      Object.defineProperty(navigator, 'userAgent', { get: () => '\${desktopUA}' });
       Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 });
       Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
     \`);
 
-    // 3. Reload to apply changes
+    // 3. Reload - new init script runs AFTER old ones, overwriting values
     await page.reload({ waitUntil: 'networkidle' });
+
+    return { success: true };
   }`
 })
-
-// Now resize to desktop dimensions
 await browser_resize({ width: 1280, height: 800 })
-
-// Capture clean desktop state
-const desktopSnapshot = await browser_snapshot()
-await browser_take_screenshot()
 ```
 
-**Why this is necessary:**
+**Why this works:** Init scripts stack in order. The desktop script runs after the mobile script, so desktop values win. HTTP headers use browser default after `unrouteAll()`.
 
-- `page.route()` handlers persist across navigations and resizes
-- `addInitScript()` scripts run on EVERY page load until the context is closed
-- Simply resizing to 1280x800 does NOT remove mobile UA or touch emulation
-- Without reset, server continues receiving mobile User-Agent in HTTP headers
+**Limitation:** Scripts keep stacking. After many switches, page load slows down. Use robust method for clean state.
+
+#### ⚡ Performance: Minimize Device Switches
+
+Alternating between mobile and desktop degrades performance because:
+
+- Each `addInitScript()` stacks (previous scripts still run)
+- `browser_close()` + `browser_navigate()` is expensive (~1-2s per switch)
+- Route handler setup/teardown adds overhead
+
+**Recommended capture order:**
+
+1. **Desktop first** → Capture all desktop states/screenshots
+2. **Switch to mobile once** → Capture all mobile devices in sequence
+3. **Reset to desktop only at end** → If you need desktop again
+
+```javascript
+// ✅ GOOD: Batch by device type
+// 1. Desktop captures (no emulation overhead)
+await browser_resize({ width: 1280, height: 800 })
+captureDesktopStates()
+
+// 2. Mobile captures (one setup, multiple sizes)
+await setupMobileEmulation()  // Single setup
+await browser_resize({ width: 390, height: 844 })   // iPhone
+captureMobile()
+await browser_resize({ width: 412, height: 915 })   // Android
+captureMobile()
+
+// 3. Reset only if desktop needed again (closes and reopens browser)
+await resetToDesktop()
+
+// ❌ BAD: Alternating (expensive browser close/reopen each switch)
+captureDesktop() → setupMobile() → captureMobile() → resetDesktop() → captureDesktop() → setupMobile()...
+```
 
 ### Mobile View - Option A (Native Emulation)
 
@@ -543,18 +609,34 @@ async function exploreSearchPage(config) {
       height: device.height
     })
 
-    // Configure mobile emulation for mobile/tablet devices
+    // Configure mobile emulation for mobile/tablet devices (Option B approach)
     if (device.name === 'mobile' || device.name === 'tablet') {
+      const userAgent = device.name === 'mobile'
+        ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
+        : 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+
       await browser_run_code({
         code: `async (page) => {
-          const userAgent = device.name === 'mobile'
-            ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
-            : 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+          const ua = '${userAgent}';
+          const touchPoints = ${device.name === 'mobile' ? 5 : 5};
+          const platform = '${device.name === 'mobile' ? 'iPhone' : 'iPad'}';
 
-          await page.setExtraHTTPHeaders({
-            'User-Agent': userAgent,
-            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
+          // 1. Route handler for HTTP User-Agent header
+          await page.route('**/*', route => {
+            route.continue({
+              headers: { ...route.request().headers(), 'user-agent': ua }
+            });
           });
+
+          // 2. Init script for JS navigator properties
+          await page.addInitScript(\`
+            Object.defineProperty(navigator, 'userAgent', { get: () => '\${ua}' });
+            Object.defineProperty(navigator, 'maxTouchPoints', { get: () => \${touchPoints} });
+            Object.defineProperty(navigator, 'platform', { get: () => '\${platform}' });
+          \`);
+
+          // 3. Reload to apply
+          await page.reload({ waitUntil: 'networkidle' });
         }`
       })
     }
@@ -571,20 +653,10 @@ async function exploreSearchPage(config) {
 
   // 3. EXPLORE STATES (device-agnostic, done once)
 
-  // Reset to desktop for exploration (clear mobile emulation if used)
-  await browser_run_code({
-    code: `async (page) => {
-      const desktopUA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-      await page.unrouteAll({ behavior: 'ignoreErrors' });
-      await page.addInitScript(\`
-        Object.defineProperty(navigator, 'userAgent', { get: () => '\${desktopUA}' });
-        Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 });
-        Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
-      \`);
-      await page.reload({ waitUntil: 'networkidle' });
-    }`
-  })
-  await browser_resize({width: 1280, height: 800})
+  // Reset to desktop for exploration (use stored URL, not dynamic capture)
+  await browser_close()
+  await browser_navigate({ url: baseUrl + "/search" })  // Use the URL we stored at start
+  await browser_resize({ width: 1280, height: 800 })
 
   const states = []
 
