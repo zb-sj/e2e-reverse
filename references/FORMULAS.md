@@ -2,6 +2,8 @@
 
 All quality and scoring calculations in one place for consistency.
 
+**Quick inline metric**: `pages_documented / pages_discovered`. Use full formulas below for page selection scoring and post-session analysis only.
+
 ## Quality Score Calculation
 
 **IMPORTANT: Score Normalization (2026 Best Practice)**

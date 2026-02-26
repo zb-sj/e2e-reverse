@@ -1083,16 +1083,14 @@ for (const state of statesToCapture) {
 
 ## Integration with Ralph Loop
 
-Ralph uses these patterns in `start.md`:
+Ralph uses these patterns in `start.md` via a 6-step core loop:
 
-1. **Navigate** → `browser_navigate`
-2. **Capture devices** → Loop: `browser_resize` + `browser_snapshot` + `browser_take_screenshot`
-3. **Explore states** → `browser_click` / `browser_type` + `browser_wait_for`
-4. **Analyze** → Helper functions on snapshots
-5. **Document** → Generate Gherkin from analysis
-6. **Validate** → Use `_validate-gherkin` utility
-7. **Update state** → Use `_write-checkpoint` utility
-8. **Repeat** → Select next page based on scoring
+1. **NAVIGATE** → `browser_navigate` to page
+2. **CAPTURE** → Desktop devices first (`browser_resize` + `browser_snapshot` + `browser_take_screenshot`), then mobile/tablet with emulation (`browser_run_code`), then `browser_close()` to reset
+3. **EXPLORE** → `browser_click` / `browser_type` + `browser_wait_for` to discover states
+4. **DOCUMENT** → Write Gherkin, `grep -c "Scenario:"` for accurate count
+5. **UPDATE** → Write state to `.claude/ralph-loop.local.md`
+6. **SELECT** → Pick next page by score, immediately continue
 
 See `start.md` for the full integration details.
 

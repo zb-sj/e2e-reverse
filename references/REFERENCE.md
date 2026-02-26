@@ -973,24 +973,7 @@ visit_history:
       roles_missing: []
 
     # Quality metrics
-    quality_score: 0.90           # 0-1 overall quality
-    scenario_diversity: 0.85      # variety of scenario types
-    coverage_gap_score: 0.10      # how much is missing (lower = better)
-    staleness_score: 0.05         # time + quality decay (lower = fresher)
-
-    # Reflection tracking (NEW - 2026 best practice)
-    reflection:
-      - iteration: 2
-        quality_score: 0.90
-        quality_delta: +0.20      # improved from 0.70
-        issues_found:
-          - type: "missing-device-tag"
-            severity: "high"
-            fixed: true
-        issues_prevented:
-          - "imperative-steps"    # learned from iteration 1
-        notes: "Improved device tagging consistency. Now using declarative style."
-        learning: "Always check for device-specific UI differences before writing scenarios"
+    scenario_count: 6             # from grep -c "Scenario:" (accurate count)
 
     # Error tracking
     errors: []                    # critical errors that blocked iteration
@@ -1014,10 +997,7 @@ visit_history:
       devices_missing: ["mobile", "tablet"]
       roles_covered: ["anonymous"]
       roles_missing: ["user"]
-    quality_score: 0.35
-    scenario_diversity: 0.25
-    coverage_gap_score: 0.65
-    staleness_score: 0.15
+    scenario_count: 1
 
   /my:
     visit_count: 0
@@ -1082,21 +1062,7 @@ Tracks what's covered vs. missing:
 
 **Quality Metrics**:
 
-- `quality_score` - Overall completeness (0-1)
-- `scenario_diversity` - Variety of scenario types (0-1)
-- `coverage_gap_score` - Missing coverage (0-1, lower is better)
-- `staleness_score` - Time + quality decay (0-1, lower is fresher)
-
-**Reflection Tracking** (NEW - 2026 best practice):
-
-- `reflection[]` - Array of reflection notes from each iteration
-  - `iteration` - Iteration number
-  - `quality_score` - Quality score at this iteration
-  - `quality_delta` - Change from previous iteration (+/-)
-  - `issues_found[]` - Validation issues detected
-  - `issues_prevented[]` - Mistakes avoided (learned from previous iterations)
-  - `notes` - Human-readable summary of improvements
-  - `learning` - Pattern/insight extracted for future iterations
+- `scenario_count` - Accurate count from `grep -c "Scenario:"` on the feature file
 
 **Error Tracking**:
 

@@ -16,7 +16,7 @@ argument-hint: "[https://example.com] [--max-iterations 15]"
 - [Step 4: Mobile Device Configuration](#step-4-mobile-device-configuration-info-only)
 - [Step 5: Load Reference Documentation](#step-5-load-reference-documentation-blocking-requirement)
 - [Step 6: Start Ralph Loop](#step-6-start-ralph-loop)
-- [Error Recovery](#error-recovery-critical---2026-best-practice)
+- [Error Recovery](#error-recovery)
 - [File Management Strategy](#file-management-strategy)
 - [Completion Criteria](#completion-criteria)
 
@@ -109,17 +109,9 @@ Then STOP execution immediately.
 
 ## Step 4: Mobile Device Configuration (INFO ONLY)
 
-If config includes mobile or tablet devices, silently note:
-- Ralph will use **best-effort mobile emulation** (browser_run_code with addInitScript)
-- Effectiveness: ~70-80% for most responsive sites
-- Works for: JavaScript checks, CSS media queries, viewport sizing
-- Limitations: HTTP User-Agent headers, true touch events (rare edge cases)
+Mobile/tablet devices use `browser_run_code` for UA + navigator override. See [references/BROWSER-EXAMPLES.md](references/BROWSER-EXAMPLES.md) "Mobile View - Option B" for the full code. Desktop uses `browser_resize` only.
 
-**Optional enhancement** (only mention if user reports mobile issues):
-- Users can configure Playwright MCP with --device flag for 95%+ accuracy
-- See setup.md Step 4 for instructions
-
-**Default behavior**: Proceed with best-effort emulation. No user prompt needed.
+**Default behavior**: Proceed with best-effort emulation (~70-80% effective). No user prompt needed.
 
 ## Step 5: Load Reference Documentation (BLOCKING REQUIREMENT)
 
@@ -192,31 +184,22 @@ For detailed instructions, read these files from the skill directory:
 
 ### Core Loop Summary
 
-1. NAVIGATE → 2. CAPTURE (all devices) → 3. EXPLORE states → 4. ANALYZE differences → 5. DOCUMENT Gherkin → 6. VALIDATE → 7. UPDATE state → 8. SELECT next page → **IMMEDIATELY CONTINUE TO NEXT ITERATION**
+1. NAVIGATE → 2. CAPTURE (desktop first, then mobile) → 3. EXPLORE states → 4. DOCUMENT Gherkin → 5. UPDATE state → 6. SELECT next page → **IMMEDIATELY CONTINUE**
 
 **⚠️ CRITICAL: DO NOT PAUSE BETWEEN ITERATIONS**
-- After step 8, immediately start the next iteration
+- After step 6, immediately start the next iteration
 - NEVER output "I will continue..." and stop
 - Continue until max_iterations reached
 
 **For detailed steps including mobile emulation code**: Read `{skill_dir}/start.md` section "Core Loop"
 
-### State Persistence (CRITICAL)
-
-Write state to BOTH locations after each significant action:
-- **Primary**: `.claude/ralph-loop.local.md`
-- **Backup**: `{output_dir}/.ralph-state.md`
-
-On resume, check backup if primary is missing.
-
 ### Mobile Emulation (CRITICAL)
 
-For mobile/tablet devices, use `browser_run_code` with `addInitScript` to inject:
-- `navigator.userAgent` override
-- `navigator.maxTouchPoints` = 5
-- `navigator.platform` override
+For mobile/tablet devices, use `browser_run_code` with route interception + addInitScript.
 
-**Full code example**: Read `{skill_dir}/start.md` lines 199-218
+**Full code**: Read `{skill_dir}/references/BROWSER-EXAMPLES.md` section "Mobile View - Option B"
+
+**Capture order**: Desktop devices first → Mobile/tablet with emulation → `browser_close()` to reset
 
 ### Completion
 
@@ -253,403 +236,180 @@ For each feature, document:
 7. **Data flow** - What data, from where?
 8. **Edge cases** - Boundaries, limits
 
-## Core Loop (Performance Optimized)
-
-1. **RESET** (if configured) - Clear browser state
-   - Clear cookies/local storage (if session_management.reset_between_iterations: true)
-   - Navigate to base_url (if session_management.reset_to_homepage: true)
-   - Wait for page idle (session_management.wait_for_idle_after_reset ms)
-
-2. **NAVIGATE** - `browser_navigate` to page (once per page)
-
-3. **CAPTURE ALL DEVICES** - Collect device-specific data in batch
-
-   **Mobile emulation approach**:
-
-   **Default: Best-effort emulation (works out-of-box)**
-   - Uses `browser_run_code` with `addInitScript` to override navigator properties
-   - No MCP server configuration needed
-   - Effectiveness: ~70-80% (sufficient for most responsive sites)
-   - Works: JavaScript checks, CSS media queries, viewport sizing
-   - Limitation: HTTP User-Agent headers (server-side detection) - rare edge case
-
-   **Optional: Native device emulation (if MCP configured)**
-   - If user has configured Playwright MCP with `--device "iPhone 13"` flag
-   - Ralph will automatically detect and use native emulation instead
-   - Effectiveness: ~95-100% (handles all edge cases)
-
-   **Implementation**:
-
-   For each device in config.devices:
-
-   **Desktop devices:**
-     - `browser_resize` to device dimensions (e.g., 1920x1080)
-     - `browser_snapshot` → store as desktop_snapshot
-     - `browser_take_screenshot` → screenshot_dir/{feature}/initial.desktop.png
-
-   **Mobile/tablet devices (best-effort emulation):**
-     - `browser_resize` to device dimensions FIRST (e.g., 390x844)
-     - Set up route interception + init scripts + reload in one call:
-
-       ```javascript
-       await browser_run_code({
-         code: `async (page) => {
-           const mobileUA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
-
-           // 1. Intercept ALL requests and override User-Agent HTTP header
-           await page.route('**/*', route => {
-             const headers = {
-               ...route.request().headers(),
-               'user-agent': mobileUA
-             };
-             route.continue({ headers });
-           });
-
-           // 2. Override JavaScript navigator properties
-           await page.addInitScript(\\\`
-             Object.defineProperty(navigator, 'userAgent', {
-               get: () => '\${mobileUA}'
-             });
-             Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 });
-             Object.defineProperty(navigator, 'platform', { get: () => 'iPhone' });
-           \\\`);
-
-           // 3. Reload - route handler modifies HTTP headers, init script runs on load
-           await page.reload({ waitUntil: 'networkidle' });
-         }`
-       })
-       ```
-
-     - `browser_snapshot` → store as mobile_snapshot (HTTP + JS both mobile now)
-     - `browser_take_screenshot` → screenshot_dir/{feature}/initial.mobile.png
-
-     **⚠️ Why both `page.route()` AND `addInitScript()`**: `page.route()` intercepts HTTP requests (server sees mobile UA), `addInitScript()` overrides JS properties (client-side code sees mobile UA). Both are needed.
-
-   **What works with best-effort emulation:**
-   - ✅ JavaScript checks (navigator.userAgent, maxTouchPoints, window.innerWidth)
-   - ✅ CSS media queries and responsive layouts
-   - ✅ Viewport-based rendering (resize triggers mobile layout)
-   - ⚠️ Limitation: HTTP User-Agent header not set (affects ~5-10% of sites with server-side detection)
-
-   **Screenshot Naming Convention**:
-   - Format: `{feature}/{name}.{device}.png` or `{feature}/{name}.png` (device-agnostic)
-   - Examples:
-     - `search/initial.desktop.png` - Desktop initial state
-     - `search/initial.mobile.png` - Mobile initial state
-     - `search/loading.png` - Loading state (same across devices)
-     - `search/error.desktop.png` - Desktop-specific error state
-
-   Result: `{desktop: {snapshot, screenshot}, mobile: {snapshot, screenshot}, tablet: {snapshot, screenshot}}`
-
-4. **EXPLORE STATES** (device-agnostic, done once)
-   - Click interactive elements to discover states (loading, error, empty, etc.)
-   - For each discovered state:
-     - Capture state name (e.g., "loading", "error", "empty")
-     - Determine if state differs across devices
-     - For each device (or once if device-agnostic):
-       - `browser_resize` to device
-       - `browser_take_screenshot` → screenshot_dir/{feature}/{state}[.{device}].png
-
-   **Examples**:
-   - Loading state (same across devices) → `search/loading.png`
-   - Error state with device differences:
-     - Desktop: `search/error.desktop.png`
-     - Mobile: `search/error.mobile.png`
-   - Overlay (mobile-only) → `search/overlay.mobile.png`
-
-5. **ANALYZE DEVICE DIFFERENCES**
-   - Compare snapshots across devices to identify device-specific behaviors
-   - Examples:
-     - Desktop: dropdown appears inline
-     - Mobile: full-screen overlay opens
-   - Flag scenarios needing device-specific variants
-
-6. **DOCUMENT ONCE** - Write Gherkin following these rules:
-   - **One feature per file**: Create separate .feature files (e.g., search.feature, user-profile.feature)
-   - **Check existing files**: Before creating, check if output_dir/{feature-name}.feature exists
-   - **Update, don't overwrite**: If file exists, READ it first, then ADD new scenarios
-   - **Preserve structure**: Keep existing scenarios, tags, and rules intact
-   - **Naming convention**: Use kebab-case matching feature tag (e.g., @apartment-detail → apartment-detail.feature)
-   - **Device tags**: Add @desktop/@mobile/@tablet where behavior differs; omit when identical
-   - **Background for common setup** (DRY principle - 2026 best practice):
-     - Detect repeated Given steps across 2+ scenarios in the same feature
-     - Extract common preconditions into Background section
-     - Place Background after Feature description, before first Rule
-     - Example detection: If 3+ scenarios start with "Given user is logged in", extract to Background
-     - See [references/GHERKIN-BEST-PRACTICES.md](references/GHERKIN-BEST-PRACTICES.md) lines 40-75 for examples
-   - **Scenario Outline for data-driven tests** (reduces duplication - 2026 best practice):
-     - Detect repetitive scenarios: 3+ scenarios with identical structure but different data
-     - Convert to Scenario Outline with Examples table
-     - Example detection: "Search Seoul", "Search Busan", "Search Incheon" → Scenario Outline
-     - See [references/GHERKIN-BEST-PRACTICES.md](references/GHERKIN-BEST-PRACTICES.md) lines 77-108 for patterns
-
-   **Background Detection Helper**:
-   ```pseudocode
-   function detectCommonPreconditions(scenarios) {
-     // Count Given step occurrences
-     givenStepCounts = {}
-     for scenario in scenarios:
-       for step in scenario.givenSteps:
-         givenStepCounts[step] = (givenStepCounts[step] || 0) + 1
-
-     // Find steps that appear in 2+ scenarios
-     commonGivens = givenStepCounts.filter(count >= 2)
-
-     if (commonGivens.length > 0):
-       return {
-         shouldUseBackground: true,
-         steps: commonGivens.keys()
-       }
-     return { shouldUseBackground: false }
-   }
-   ```
-
-   **Scenario Outline Detection Helper**:
-   ```pseudocode
-   function detectRepetitiveScenarios(scenarios) {
-     // Group scenarios by structure (ignoring data values)
-     scenarioGroups = groupByStructure(scenarios)
-
-     for group in scenarioGroups:
-       if (group.scenarios.length >= 3):
-         // Extract varying data
-         parameters = identifyVaryingData(group.scenarios)
-
-         return {
-           shouldUseOutline: true,
-           scenarios: group.scenarios,
-           parameters: parameters  // e.g., ["location", "area", "radius"]
-         }
-
-     return { shouldUseOutline: false }
-   }
-   ```
-
-   Example output with Background:
-   ```gherkin
-   Feature: Property Browsing
-
-   Background:
-     Given user is logged in
-     And user has searched for properties
-
-   Scenario: View property details (all devices)
-     When user selects first property
-     Then property detail page appears
-
-   Scenario: Save property to favorites
-     When user marks property as favorite
-     Then property is saved to favorites list
-   ```
-
-   Example output with Scenario Outline:
-   ```gherkin
-   Scenario Outline: Search by location keyword
-     When user searches for "<location>"
-     Then properties near <area> appear
-     And results are within <radius> of search point
-
-     Examples:
-       | location | area              | radius |
-       | 강남역   | Gangnam Station   | 500m   |
-       | 해운대   | Haeundae Beach    | 1km    |
-       | 송도     | Songdo City       | 2km    |
-   ```
-
-   Example output with device-specific scenarios:
-   ```gherkin
-   Scenario: View search results (all devices)
-     When user performs search
-     Then results list appears
-
-   @mobile
-   Scenario: Open search - mobile overlay
-     When user taps search bar
-     Then full-screen search overlay opens
-
-   @desktop
-   Scenario: Open search - desktop dropdown
-     When user clicks search input
-     Then dropdown autocomplete appears
-   ```
-
-7. **VALIDATE & REFLECT** - Self-check with quality trend analysis (2026 Reflection Pattern)
-
-   **Validation** (inline quality check):
-   - Call `/e2e-reverse _validate-gherkin` on the feature file just written
-   - Check syntax, conventions, quality, coverage gaps
-   - If issues found: self-correct immediately and re-write
-
-   **Reflection** (learning from mistakes - NEW):
-   - Compare current quality_score vs. previous iteration for this page
-   - Calculate quality_delta (improvement or regression)
-   - Analyze validation issues to identify patterns:
-     - Repeated mistakes (e.g., always forgetting device tags)
-     - Improvement trends (e.g., declarative steps getting better)
-     - New issue types (e.g., first time seeing missing Background)
-
-   **Reflection Notes** (add to state file):
-   ```yaml
-   reflection:
-     - iteration: 2
-       quality_score: 0.85
-       quality_delta: +0.20  # improved from 0.65
-       issues_found:
-         - type: "missing-device-tag"
-           severity: "high"
-           fixed: true
-       issues_prevented:
-         - "imperative-steps"  # learned from previous iteration
-       notes: "Improved device tagging. Now consistently using declarative style."
-       learning: "Always check for device-specific UI before writing scenario"
-   ```
-
-   **Self-Correction Logic**:
-   - If quality_delta < 0 (regression): Analyze what changed, revert to previous approach
-   - If same issues repeat 3+ times: Flag for human review, add to "common mistakes" tracker
-   - If quality_delta > 0.1: Note successful pattern, reinforce in future iterations
-
-   **Quality Improvement Tracking**:
-   - Track rolling average of quality_score across all pages
-   - Identify pages with declining quality (needs revisit)
-   - Celebrate improvements (quality_delta > 0.15)
-
-   This enables Ralph's **autonomous learning and continuous improvement** - a key 2026 best practice for long-running agents.
-
-8. **VERIFY** - Re-read spec, ask "Could I rebuild this?"
-
-9. **UPDATE STATE** - Incremental writes with verification (CRITICAL FOR PERSISTENCE)
-
-   **⚠️ WRITE STATE IMMEDIATELY AFTER EACH SIGNIFICANT ACTION** - Do not batch writes!
-
-   Ralph MUST write state incrementally to prevent data loss:
-
-   **When to write state**:
-   - ✅ After navigating to a new page (before any exploration)
-   - ✅ After capturing screenshots for each device
-   - ✅ After writing/updating a feature file
-   - ✅ After completing validation
-   - ✅ Before selecting the next page
-
-   **Primary state file**: `.claude/ralph-loop.local.md`
-   **Backup state file**: `{output_dir}/.ralph-state.md` (inside output directory - more resilient)
-
-   **Incremental Write Pattern**:
-
-   ```pseudocode
-   function writeStateWithVerification(state_data) {
-     primary_path = ".claude/ralph-loop.local.md"
-     backup_path = config.output_dir + "/.ralph-state.md"
-
-     // 1. Write to BOTH locations
-     write_file(primary_path, state_data)
-     write_file(backup_path, state_data)
-
-     // 2. Verify primary write succeeded
-     read_back = read_file(primary_path)
-     if (read_back != state_data) {
-       log_warning("Primary state write verification failed!")
-       // Backup still exists in output_dir
-     }
-
-     // 3. Log checkpoint
-     log_info("State saved: iteration {iteration}, page {current_page}")
-   }
-   ```
-
-   **State file contents**:
-   - iteration: current iteration number
-   - status: running | paused | completed
-   - quality_score (based on coverage)
-   - coverage analysis (states/devices/roles covered vs missing)
-   - scenario metadata
-   - visit_history with timestamps
-
-   **Recovery on resume**:
-   - First check `.claude/ralph-loop.local.md`
-   - If missing or corrupted, fall back to `{output_dir}/.ralph-state.md`
-   - If both missing, start fresh from iteration 1
-
-10. **REPEAT** - Select next page until complete
-
-## ⚠️ CRITICAL: Continuous Execution (DO NOT PAUSE)
-
-**Ralph MUST continue iterating without stopping.** This is a BLOCKING REQUIREMENT.
-
-After completing step 9 (UPDATE STATE), Ralph MUST:
-
-1. **Immediately** proceed to select the next page (step 10)
-2. **Immediately** start the next iteration (back to step 1: RESET or step 2: NAVIGATE)
+## Core Loop
+
+For each iteration, execute these 6 steps sequentially:
+
+### 1. NAVIGATE
+
+`browser_navigate` to the target page URL.
+
+If configured, clear browser state first:
+- Clear cookies/local storage (if session_management.reset_between_iterations: true)
+- Navigate to base_url (if session_management.reset_to_homepage: true)
+
+### 2. CAPTURE — Screenshot all devices
+
+**Before screenshots, create directory:**
+
+```bash
+mkdir -p {screenshot_dir}/{feature}/
+```
+
+**Phase A: Desktop devices**
+
+For each desktop device in config.devices:
+- `browser_resize` to dimensions (e.g., 1280x800)
+- `browser_snapshot` → store as {device}_snapshot
+- `browser_take_screenshot` → `{screenshot_dir}/{feature}/initial.{device}.png`
+
+**Phase B: Mobile/tablet devices (with emulation)**
+
+For each mobile/tablet device:
+1. `browser_resize` to device dimensions FIRST (e.g., 390x844)
+2. Apply mobile emulation via `browser_run_code`:
+   - `page.route('**/*')` to override HTTP User-Agent header
+   - `page.addInitScript()` to override navigator.userAgent, maxTouchPoints, platform
+   - `page.reload({ waitUntil: 'networkidle' })`
+3. **Full code**: See [references/BROWSER-EXAMPLES.md](references/BROWSER-EXAMPLES.md) "Mobile View - Option B"
+4. `browser_snapshot` → store as {device}_snapshot
+5. `browser_take_screenshot` → `{screenshot_dir}/{feature}/initial.{device}.png`
+
+**Phase C: Reset to desktop**
+
+After all mobile captures:
+1. `browser_close()` (clears all stacked init scripts and route handlers)
+2. `browser_navigate` to same URL (fresh browser, no emulation residue)
+3. `browser_resize` to desktop dimensions
+
+**Screenshot naming**: `{feature}/{state}.{device}.png`
+- Examples: `search/initial.desktop.png`, `search/initial.mobile.png`, `search/loading.png`
+
+### 3. EXPLORE — Discover states
+
+Done once on desktop (device-agnostic exploration):
+- Click interactive elements to discover states (loading, error, empty, etc.)
+- For each discovered state:
+  - Capture snapshot and screenshot
+  - Note if state differs across devices
+  - Use naming: `{feature}/{state}.png` (device-agnostic) or `{feature}/{state}.{device}.png`
+
+Compare desktop vs mobile snapshots to identify device-specific behaviors:
+- Desktop: dropdown appears inline → Mobile: full-screen overlay opens
+- Flag scenarios needing device-specific variants with `@desktop`/`@mobile` tags
+
+### 4. DOCUMENT — Write Gherkin
+
+**Rules:**
+- **One feature per file**: Create separate .feature files (e.g., search.feature, user-profile.feature)
+- **Check existing files**: Before creating, check if output_dir/{feature-name}.feature exists
+- **Update, don't overwrite**: If file exists, READ it first, then ADD new scenarios
+- **Preserve structure**: Keep existing scenarios, tags, and rules intact
+- **Naming convention**: Use kebab-case matching feature tag (e.g., @apartment-detail → apartment-detail.feature)
+- **Device tags**: Add @desktop/@mobile/@tablet where behavior differs; omit when identical
+- **Background for common setup**: Detect repeated Given steps across 2+ scenarios, extract to Background. See [references/GHERKIN-BEST-PRACTICES.md](references/GHERKIN-BEST-PRACTICES.md) for examples
+- **Scenario Outline for data-driven tests**: Detect 3+ scenarios with identical structure but different data, convert to Scenario Outline. See [references/GHERKIN-BEST-PRACTICES.md](references/GHERKIN-BEST-PRACTICES.md) for patterns
+
+**After writing, count scenarios accurately:**
+
+```bash
+grep -c "Scenario:" {output_dir}/{feature-name}.feature
+```
+
+Store this as `scenario_count` in state.
+
+**Example output:**
+
+```gherkin
+@search @route(/search) @role(anonymous)
+Feature: Property Search
+  Users can search for rental properties by location, price, and amenities.
+
+  Background:
+    Given user is on search page
+
+  @smoke @happy-path
+  Rule: Basic Search
+    Scenario: Search by location keyword
+      When user searches for "강남역"
+      Then search results list appears
+      And results count shows total number
+
+  @mobile
+  Rule: Mobile Search Experience
+    Scenario: Search overlay
+      When user opens search
+      Then full-screen search overlay opens
+
+  @empty-state @regression
+  Rule: No Results Handling
+    Scenario: Search with no matches
+      When user searches for non-existent location
+      Then empty state message appears
+```
+
+### 5. UPDATE — Write state file
+
+Write the full state to `.claude/ralph-loop.local.md` using the Write tool.
+
+**Key fields to update:**
+- `iteration`: increment
+- `status`: running
+- `visit_history`: update page entry with visit_count, last_visited, status, coverage, scenario_count
+- `coverage.pages_discovered`, `coverage.pages_documented`, `coverage.scenarios_total`
+
+**Use `scenario_count` from grep** — do not manually count scenarios.
+
+### 6. SELECT — Pick next page and continue
+
+Use weighted scoring to select the next page:
+
+```
+final_score = (priority × 0.3) + (coverage_gap × 0.3) + (staleness × 0.2) + (diversity × 0.2) + random(0, 0.3)
+```
+
+See [references/FORMULAS.md](references/FORMULAS.md) for full calculation details.
+
+**Immediately start the next iteration.** Do not pause, do not summarize, do not wait for user input.
+
+## Continuous Execution (DO NOT PAUSE)
+
+**Ralph MUST continue iterating without stopping.** These rules are non-negotiable:
+
+1. **MUST** immediately proceed to the next page after updating state
+2. **MUST** start the next iteration without any pause or summary
 3. **NEVER** output "I will continue in the next iteration" and stop
 4. **NEVER** wait for user input between iterations
 5. **NEVER** end the turn with a summary of what was done
 
-**Wrong behavior** (causes session to end):
-
-```text
-✗ "Iteration 1 complete. I will continue in the next iteration."
-✗ [Claude stops and waits]
-```
-
-**Correct behavior** (continuous execution):
-
-```text
-✓ "Iteration 1 complete. Proceeding to iteration 2."
-✓ [Claude immediately selects next page and starts NAVIGATE step]
-```
-
-**Iteration Loop Pattern**:
-
 ```pseudocode
 while (current_iteration <= max_iterations) {
-  // Execute steps 1-9
   navigate_to_page()
-  capture_all_devices()
+  capture_all_devices()    // desktop first, then mobile, then reset
   explore_states()
-  analyze_differences()
   document_gherkin()
-  validate_and_reflect()
-  verify_spec()
-  update_state()  // CRITICAL: Write state BEFORE moving to next iteration
+  update_state()
 
-  // Step 10: Select next page
   next_page = select_next_page_by_score()
   current_iteration++
-
-  // DO NOT STOP HERE - immediately continue the loop
-  // NO user output like "will continue..."
-  // NO waiting for input
+  // DO NOT STOP — immediately continue the loop
 }
 
-// Only stop when loop completes
 output("<promise>E2E_COMPLETE</promise>")
 ```
 
-**Why this matters**: If Ralph outputs "I will continue..." and stops, the session may be terminated, crunched (summarized), or the state file may be lost. Continuous execution ensures all iterations complete within a single session.
+**Why this matters**: If Ralph outputs a summary and stops, the session may be terminated or crunched. Continuous execution ensures all iterations complete within a single session.
 
-**Performance Impact**:
-- Before: 3 devices × (1 nav + 1 snapshot + 1 screenshot + explore + document) = 15+ operations
-- After: 1 nav + (3 resize/snapshot/screenshot) + 1 explore + 1 document = 8 operations
-- **Reduction**: ~53% fewer operations baseline, more savings with state exploration
+## Error Recovery
 
-## Error Recovery (CRITICAL - 2026 Best Practice)
+**Ralph MUST handle errors gracefully. Follow these patterns:**
 
-**Ralph MUST implement error handling for long-running sessions. Follow these patterns:**
-
-### Navigation Failures (Step 2)
+### Navigation Failures
 
 ```pseudocode
 try {
   browser_navigate(page_url, timeout: config.timeouts.page_load)
 } catch (TimeoutError) {
-  // Log error to state file
-  state.visit_history[page_url].errors.push({
-    type: "navigation_timeout",
-    timestamp: now(),
-    message: "Page load exceeded timeout"
-  })
-
-  // Recovery strategy
   if (retries < 3) {
     wait(2000 * retries)  // exponential backoff
     retry navigation
@@ -657,161 +417,56 @@ try {
     skip this page, mark as "failed", continue to next page
   }
 } catch (NetworkError) {
-  // Transient network issue
   if (retries < 5) {
     wait(1000)
-    retry navigation
+    retry
   } else {
     skip page, mark as "failed-network"
   }
 }
 ```
 
-### Playwright MCP Server Disconnection
-
-```pseudocode
-// Periodic health check (every 5 iterations)
-if (iteration % 5 === 0) {
-  try {
-    // Lightweight operation to test connectivity
-    browser_snapshot()
-  } catch (MCPServerUnavailable) {
-    // Server disconnected mid-session
-    display_to_user("⚠️ Playwright MCP server disconnected. Please check connection.")
-
-    // Attempt reconnection
-    wait(5000)
-    if (still_unavailable) {
-      // Graceful session pause
-      write_checkpoint()  // save progress
-      display_to_user("Session paused. Run `/e2e-reverse start` to resume after reconnecting MCP.")
-      exit_with_resume_state
-    }
-  }
-}
-```
-
-### Screenshot/Snapshot Failures (Steps 3-4)
+### Screenshot Failures
 
 ```pseudocode
 try {
   browser_take_screenshot(path)
 } catch (ScreenshotTimeout) {
-  // Screenshot failed, but don't stop entire iteration
+  // Don't stop entire iteration
   log_warning("Screenshot failed for {device} - continuing")
-  state.visit_history[page].warnings.push({
-    type: "screenshot_failed",
-    device: device_name,
-    timestamp: now()
-  })
-  continue with next device  // skip this screenshot, proceed
+  continue with next device
 }
 ```
 
-### Interaction Failures (Step 4 - Explore States)
+### Interaction Failures
 
 ```pseudocode
 try {
   browser_click(element_ref, timeout: config.timeouts.interaction)
-  wait(config.timeouts.state_transition)  // wait for state change
-  browser_snapshot()  // capture new state
+  browser_snapshot()
 } catch (ElementNotFound) {
-  // Element disappeared (dynamic UI)
   log_info("Element no longer available - UI changed")
   continue to next element
 } catch (ElementNotInteractable) {
-  // Element covered by overlay or disabled
   log_info("Element not interactable - skipping")
   continue to next element
 } catch (ClickTimeout) {
-  // Click didn't complete
   if (retries < 2) {
     wait(1000)
-    retry click
+    retry
   } else {
-    skip element, log as non-interactive
+    skip element
   }
 }
 ```
 
-### State File Write Failures (Step 9)
+### General Error Handling
 
-```pseudocode
-try {
-  write_checkpoint(state_data)
-} catch (FileSystemError) {
-  // Disk full, permissions issue
-  log_critical("Cannot write state file - session at risk")
-
-  // Attempt recovery
-  try_alternate_location(".claude/e2e-reverse-backup.md")
-
-  if (still_fails) {
-    display_to_user("⚠️ Cannot save progress. Check disk space and permissions.")
-    // Continue session but warn user of data loss risk
-  }
-}
-```
-
-### Validation Failures (Step 7)
-
-```pseudocode
-try {
-  validation_result = call_validate_gherkin(feature_file)
-} catch (ValidatorError) {
-  // Validator itself failed (not validation issues)
-  log_warning("Validator failed to run - skipping validation for this iteration")
-  // Don't block iteration, continue without validation
-  continue
-}
-
-if (validation_result.has_issues) {
-  // Reflection: analyze issues and self-correct
-  reflection_notes = analyze_validation_issues(validation_result)
-
-  // Track improvement
-  if (previous_quality_score > 0) {
-    quality_delta = current_quality_score - previous_quality_score
-    state.visit_history[page].reflection.push({
-      iteration: current_iteration,
-      issues_found: validation_result.issues,
-      quality_delta: quality_delta,
-      notes: reflection_notes
-    })
-  }
-
-  // Self-correct and re-write
-  if (validation_result.is_critical) {
-    rewrite_feature_file_with_fixes()
-    re_validate()
-  }
-}
-```
-
-### General Error Handling Pattern
-
-**For EVERY browser operation, wrap in try-catch**:
-
-1. **Fail fast for critical errors**: Navigation, MCP disconnection
-2. **Retry with backoff**: Transient network issues, timeouts
-3. **Skip and continue**: Non-critical failures (screenshot, single element)
-4. **Log all errors**: Add to state file for post-session analysis
-5. **Checkpoint on error**: Write state before potential crash
-
-**Error Logging Schema** (add to state file):
-
-```yaml
-visit_history:
-  /search:
-    errors: []  # Critical errors that blocked iteration
-    warnings: []  # Non-blocking issues
-    retries: 0  # Number of retry attempts
-    reflection:  # NEW: Track quality improvements
-      - iteration: 2
-        issues_found: ["missing-device-tag", "imperative-step"]
-        quality_delta: +0.15
-        notes: "Fixed device tagging, converted to declarative style"
-```
+1. **Fail fast** for critical errors: Navigation, MCP disconnection
+2. **Retry with backoff** for transient issues: Timeouts, network
+3. **Skip and continue** for non-critical failures: Screenshot, single element
+4. **Log all errors** in state file visit_history for post-session analysis
+5. **Write state before potential crash** — checkpoint on error
 
 **See also**: [references/ERROR-RECOVERY.md](references/ERROR-RECOVERY.md) for comprehensive recovery strategies.
 
@@ -852,6 +507,7 @@ visit_history:
 - `browser_click` - Click element by ref or selector
 - `browser_type` - Enter text in input
 - `browser_take_screenshot` - Capture visual state
+- `browser_run_code` - Execute JS (required for mobile emulation)
 
 ## Tag System
 
@@ -865,11 +521,7 @@ Use tags to categorize scenarios by feature, priority, state, role, and device.
 - **Device**: `@desktop`, `@mobile`, `@tablet`
 - **Route**: `@route(/path)` (optional)
 
-**Complete documentation**: See [REFERENCE.md - Tag System](references/REFERENCE.md#tag-categories) for:
-- Full tag reference and usage rules
-- When to use `@route()` tags
-- Tag scope (feature-level vs scenario-level)
-- Role tag examples and patterns
+**Complete documentation**: See [REFERENCE.md - Tag System](references/REFERENCE.md#tag-categories) for full reference.
 
 ## Gherkin Structure
 
@@ -887,83 +539,36 @@ Feature: Feature Name
       Then expected result
 ```
 
-**Complete documentation**: See [REFERENCE.md - Gherkin Conventions](references/REFERENCE.md#gherkin-conventions) for:
-- Feature structure with examples
-- Step conventions (Given/When/Then)
-- Device-specific scenario patterns
-- Tag scope and inheritance rules
+**Complete documentation**: See [REFERENCE.md - Gherkin Conventions](references/REFERENCE.md#gherkin-conventions) for full reference.
 
 ## Page Selection Strategy
 
-**Smart Weighted Selection with Randomness**
+Uses intelligent scoring (70%) + randomness (30%) to balance coverage with exploration.
 
-Uses intelligent scoring (70%) + randomness (30%) to balance optimal coverage with exploration diversity.
-
-### Score Calculation
-
-For each page, calculate:
+**Score Formula**:
 
 ```javascript
 weighted_score = (priority × 0.3) + (coverage_gap × 0.3) + (staleness × 0.2) + (diversity × 0.2)
-random_factor = random(0, 0.3)
-final_score = weighted_score + random_factor
+final_score = weighted_score + random(0, 0.3)
 ```
 
-### Scoring Factors
-
-1. **Priority (0-1)**: Page importance
-   - `critical` (1.0) - Login, search, checkout, main flows
-   - `high` (0.75) - Key features, user profiles
-   - `medium` (0.5) - Secondary features
-   - `low` (0.25) - Utility pages, settings
-
-2. **Coverage Gap (0-1)**: Missing scenario types
-   - Calculate: `1 - (states_covered + devices_covered + roles_covered) / (total_expected)`
-   - High score = many gaps → prioritize revisit
-   - Example: Missing @error, @loading, @mobile → score 0.8
-
-3. **Staleness (0-1)**: Time + quality decay
-   - Calculate: `(days_since_visit / stale_days) × (1 - quality_score)`
-   - High score = old + low quality → needs revisit
-   - Example: 5 days old, quality 0.6 → score 0.57
-
-4. **Diversity (0-1)**: Scenario variety
-   - Calculate: `1 - (unique_scenario_types / expected_types)`
-   - High score = repetitive scenarios → needs variety
-   - Example: Only @happy-path scenarios → score 0.8
+**Scoring Factors**:
+- **Priority** (0-1): critical=1.0, high=0.75, medium=0.5, low=0.25
+- **Coverage Gap** (0-1): Missing states/devices/roles from template
+- **Staleness** (0-1): (days_since_visit / stale_days) × (1 - quality_score)
+- **Diversity** (0-1): 1 - (unique_scenario_types / expected_types)
 
 **Selection Process**:
+1. Separate pools: undocumented (pending) vs documented pages
+2. Apply ratio (config.iteration.new_discovery_ratio): roll dice to pick pool
+3. Pick highest scored page from selected pool
+4. Fallback to other pool if selected pool empty
 
-1. **Separate pools**:
-   - Undocumented pages (status: `pending`)
-   - Documented pages (status: `documented`, `in-progress`)
-
-2. **Calculate scores** for all pages (no exclusions - pages evolve!)
-
-3. **Apply ratio** (config.iteration.new_discovery_ratio):
-   - Roll dice: if < ratio → pick highest scored undocumented page
-   - Otherwise → pick highest scored documented page
-
-4. **Fallback logic**:
-   - If selected pool empty, use the other pool
-   - If max_iterations reached, session done
-
-**Page Status Lifecycle**:
-
-- `pending` - Discovered, not yet documented
-- `documented` - Has feature file (can always be revisited - quality_score indicates coverage depth)
-- `in-progress` - Currently being documented (this iteration)
-
-**Note**: No "complete" status - pages evolve, new edge cases emerge. Quality scores indicate coverage depth, not finality.
+**Complete formulas**: See [references/FORMULAS.md](references/FORMULAS.md) for detailed calculations.
 
 ## State Tracking
 
-Ralph tracks progress in TWO locations for resilience:
-
-1. **Primary**: `.claude/ralph-loop.local.md` (may be lost if session is crunched)
-2. **Backup**: `{output_dir}/.ralph-state.md` (inside git-tracked directory - more resilient)
-
-**On session start**, Ralph checks both locations and uses the most recent valid state.
+Ralph tracks progress in `.claude/ralph-loop.local.md`.
 
 **Key fields**:
 - `status`: running | paused | stopped | completed
@@ -973,13 +578,11 @@ Ralph tracks progress in TWO locations for resilience:
   - priority (critical/high/medium/low), page_type (entry-point/feature/utility)
   - scenarios metadata with tags and timestamps
   - coverage analysis (states/devices/roles covered vs missing)
-  - quality_score, scenario_diversity, coverage_gap_score
+  - scenario_count (from `grep -c "Scenario:"`)
 
-**Complete documentation**: See [REFERENCE.md - State File Reference](references/REFERENCE.md#state-file-reference) for:
-- Full state file structure with examples
-- Field definitions and data types
-- Quality metric calculations
-- Page status lifecycle
+**On session start**, check `.claude/ralph-loop.local.md`. If missing, start fresh from iteration 1.
+
+**Complete documentation**: See [REFERENCE.md - State File Reference](references/REFERENCE.md#state-file-reference) for full structure.
 
 ## Completion Criteria
 
@@ -988,11 +591,10 @@ Output `<promise>E2E_COMPLETE</promise>` when max_iterations reached or user man
 **Quality Indicators** (not completion gates):
 
 - Pages documented: Track how many pages have feature files
-- Average quality_score: Indicates overall coverage depth
-- Coverage gaps: Pages with low quality_score need attention
-- Scenario diversity: Variety of test types across the app
+- Quick progress metric: `pages_documented / pages_discovered`
+- Coverage gaps: Pages with missing states/devices need attention
 
-**Note**: Testing is never truly "complete" - use quality metrics to decide when sufficient coverage is reached for current goals.
+**Note**: Testing is never truly "complete" — use quality metrics to decide when sufficient coverage is reached.
 
 ## Start Session
 
