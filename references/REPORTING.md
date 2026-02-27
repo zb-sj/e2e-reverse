@@ -423,7 +423,7 @@ Features meeting quality target ({target_quality_score}): {high_quality_count} /
 
 ## Checkpoint Report Template
 
-Used by: [pause.md](pause.md), `_write-checkpoint` utility
+Used by: state update step in CORE-LOOP.md
 
 `.claude/e2e-reverse-checkpoint.md`:
 
@@ -487,11 +487,11 @@ Ralph will automatically detect and resume from this checkpoint.
 
 When implementing status/export/validate/checkpoint commands:
 
-1. **Load data** using utility commands:
-   - `/e2e-reverse _check-session` for session state
-   - `/e2e-reverse _load-config` for configuration
-   - `/e2e-reverse _calculate-metrics` for metrics
-   - `/e2e-reverse _list-features` for feature files
+1. **Load data** directly:
+   - Read `.claude/ralph-loop.local.md` for session state
+   - Read `.claude/e2e-reverse.config.md` for configuration
+   - Use `grep -c "Scenario:"` for scenario counts
+   - Use `Glob` to list feature files
 
 2. **Select template** from this file based on command
 

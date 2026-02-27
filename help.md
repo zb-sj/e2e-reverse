@@ -37,10 +37,8 @@ Reverse-engineer live apps into Gherkin documentation detailed enough for anothe
 ## Ralph's Autonomous Features
 
 Ralph handles these automatically (no separate commands needed):
-- **Auto-checkpointing**: Saves progress every N iterations
+- **Auto-checkpointing**: Saves progress after each iteration
 - **Auto-resume**: Detects checkpoint on restart and continues
-- **Inline validation**: Self-validates scenarios as they're written
-- **Self-correction**: Fixes issues immediately based on quality scores
 - **Iterative improvement**: Revisits pages to improve coverage
 
 ## Usage
@@ -74,7 +72,7 @@ Run `/e2e-reverse setup` to create or update config.
 
 For detailed documentation:
 
+- **Ralph core loop**: [references/CORE-LOOP.md](references/CORE-LOOP.md)
 - **Gherkin conventions & tag system**: [references/REFERENCE.md](references/REFERENCE.md)
-- **Quality scoring algorithms**: [references/FORMULAS.md](references/FORMULAS.md)
 - **Report templates**: [references/REPORTING.md](references/REPORTING.md)
 - **Step-by-step guide**: Run `/e2e-reverse setup` then `/e2e-reverse start`

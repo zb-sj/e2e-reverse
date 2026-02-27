@@ -1,6 +1,7 @@
 ---
 name: e2e-reverse
 description: "Reverse-engineer live web applications into Gherkin specifications for E2E testing and recreation. Use when you need to document existing app behavior, create test scenarios from production apps, generate BDD specifications from live websites, or recreate app features based on observed interactions. Autonomous exploration via Ralph Loop with auto-validation and quality scoring. Requires Playwright MCP server for browser automation."
+argument-hint: "<setup|start|status|export|cancel|help>"
 compatibility: "Requires Playwright MCP server"
 ---
 
@@ -49,7 +50,7 @@ If a valid subcommand is detected, IMMEDIATELY read and execute that command fil
 2. **BLOCKING**: Load and apply settings from `.claude/e2e-reverse.config.md`.
 3. Follow Gherkin best practices (Given/When/Then, feature-oriented, proper tagging).
 4. Maintain session state with auto-checkpointing; enable resume on interruption.
-5. Use quality scoring algorithms to prioritize quality over quantity.
+5. Prioritize quality over quantity (target 3+ scenarios per feature).
 6. Document device-specific behavior separately (do not merge desktop/mobile/tablet).
 7. Name feature files after functionality (`search.feature`, not `page1.feature`).
 8. Capture screenshots for key states, organized by feature.
@@ -57,13 +58,10 @@ If a valid subcommand is detected, IMMEDIATELY read and execute that command fil
 
 ## References
 
+- **[references/CORE-LOOP.md](references/CORE-LOOP.md)** - Ralph iteration engine (read every iteration)
 - **[references/REFERENCE.md](references/REFERENCE.md)** - Gherkin conventions, tag system, config structure
-- **[references/FORMULAS.md](references/FORMULAS.md)** - Quality scoring algorithms
 - **[references/REPORTING.md](references/REPORTING.md)** - Report templates
 - **[references/BROWSER-EXAMPLES.md](references/BROWSER-EXAMPLES.md)** - Playwright MCP integration examples
-- **[references/ERROR-RECOVERY.md](references/ERROR-RECOVERY.md)** - Error handling strategies
-- **[references/ARCHITECTURE.md](references/ARCHITECTURE.md)** - System design and optimization
-- **[references/WORKFLOW.md](references/WORKFLOW.md)** - Visual workflow diagrams
 - **[references/GHERKIN-BEST-PRACTICES.md](references/GHERKIN-BEST-PRACTICES.md)** - Writing standards
 - **[references/MODAL-HANDLING.md](references/MODAL-HANDLING.md)** - Dialog/modal handling
 

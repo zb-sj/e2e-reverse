@@ -1,40 +1,51 @@
 ---
 description: "Report E2E reverse engineering progress"
-allowed-tools: Skill
+allowed-tools: Read, Glob, Grep
 ---
 
 # E2E Reverse Engineering Status
 
-Report current session progress using utility commands.
+## Steps
 
-## Actions
+1. **Read session state** from `.claude/ralph-loop.local.md`
+   - If file doesn't exist: "No active E2E session. Run `/e2e-reverse setup` then `/e2e-reverse start`."
+   - If exists: extract iteration, status, visit_history, coverage
 
-1. **Load session state**
-   - Call `/e2e-reverse _check-session`
-   - If session.validation.valid is false:
-     - Tell user: session.validation.message
-     - Tell user: session.validation.suggestion
-     - Stop execution
+2. **Read config** from `.claude/e2e-reverse.config.md`
+   - Extract max_iterations, output_dir, base_url
 
-2. **Calculate metrics**
-   - Call `/e2e-reverse _calculate-metrics` with session state
+3. **Count actual scenarios** across all feature files:
+   ```bash
+   grep -c "Scenario:" {output_dir}/*.feature
+   ```
 
-3. **List features**
-   - Call `/e2e-reverse _list-features` for feature file inventory
+4. **Calculate simple quality metric**:
+   - `quality = scenarios_total / (pages_documented × target_per_feature)`
+   - Where `target_per_feature` defaults to config.quality.min_scenarios_per_feature (default: 3)
 
-4. **Generate report**
-   - Use template from [references/REPORTING.md](references/REPORTING.md#status-report-template)
-   - Populate with data from utilities
-   - Display to user
+5. **Display report** to user:
 
-## Report Template
+```
+## E2E Session Status
 
-See [REPORTING.md - Status Report Template](references/REPORTING.md#status-report-template) for complete format.
+**Target**: {base_url}
+**Status**: {status} | Iteration {iteration}/{max_iterations} | Session #{session_count}
 
-**Key sections**:
-- Session status and progress
-- Coverage metrics (pages, scenarios)
-- Quality distribution
-- Page status table
-- Next actions (pages needing attention)
-- Feature files list
+### Coverage
+- Pages discovered: {pages_discovered}
+- Pages documented: {pages_documented} ({pages_documented/pages_discovered}%)
+- Total scenarios: {scenarios_total} (from grep)
+
+### Quality
+- Avg scenarios/feature: {scenarios_total / pages_documented}
+- Target: {target_per_feature} scenarios/feature
+
+### Pages
+| Page | Status | Visits | Scenarios |
+|------|--------|--------|-----------|
+| /path | documented | 2 | 6 |
+
+### Next Actions
+- Pages needing attention (fewest scenarios)
+- Undocumented pages remaining
+```

@@ -61,9 +61,9 @@ AskUserQuestion with questions:
     header: "Devices",
     multiSelect: true,
     options: [
-      { label: "Desktop (Recommended)", description: "1280x800 desktop viewport" },
-      { label: "Mobile (Recommended)", description: "iPhone 14 (390x844)" },
-      { label: "Tablet", description: "iPad Air (820x1180)" }
+      { label: "Desktop (Recommended)", description: "1280x800 desktop viewport — reliable and fast" },
+      { label: "Mobile", description: "iPhone 14 (390x844) — adds mobile capture with UA emulation, slower" },
+      { label: "Tablet", description: "iPad Air (820x1180) — adds tablet capture with UA emulation, slower" }
     ]
   }
 ]

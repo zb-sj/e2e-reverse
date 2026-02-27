@@ -1,139 +1,66 @@
 ---
 description: "Export E2E reverse engineering report"
-allowed-tools: Skill, Write
+allowed-tools: Read, Write, Glob, Grep
 argument-hint: "[--format markdown|json|html]"
 ---
 
 # Export E2E Report
 
-Generate a comprehensive report of the reverse engineering session using utility commands.
+Generate a comprehensive report of the reverse engineering session.
 
-## Actions
+## Steps
 
-1. **Parse arguments**
-   - Extract format: markdown (default), json, or html
-   - Usage: `/e2e-reverse export` or `/e2e-reverse export --format json`
+1. **Parse arguments**: Extract format (markdown default, json, or html)
 
-2. **Gather data using utilities**
-   - Call `/e2e-reverse _check-session` for session state
-   - Call `/e2e-reverse _load-config` for configuration
-   - Call `/e2e-reverse _list-features` for feature file inventory
+2. **Gather data**:
+   - Read `.claude/ralph-loop.local.md` for session state
+   - Read `.claude/e2e-reverse.config.md` for configuration
+   - List feature files in output_dir with `Glob`
+   - Count scenarios per file: `grep -c "Scenario:" {file}` for each
 
-3. **Calculate metrics**
-   - Call `/e2e-reverse _calculate-metrics` with session state and config
+3. **Calculate metrics**:
+   - `pages_documented`: count of feature files
+   - `scenarios_total`: sum of grep counts
+   - `avg_scenarios_per_feature`: scenarios_total / pages_documented
+   - `quality`: min(avg_scenarios_per_feature / target_per_feature, 1.0)
 
-4. **Generate report based on format**
-   - Select template from [references/REPORTING.md](references/REPORTING.md#export-report-templates)
-   - Populate variables with data from utilities
-   - Write to `.claude/e2e-reverse-report.{format}`
+4. **Generate report** using template from [references/REPORTING.md](references/REPORTING.md)
 
-5. **Confirm to user**
-   - "Report exported to `.claude/e2e-reverse-report.{format}`"
-   - Show summary: "{pages_documented} pages, {scenarios_total} scenarios, quality {avg_quality_score.toFixed(2)}"
+5. **Write report** to `.claude/e2e-reverse-report.{format}`
 
-## Report Templates
+6. **Confirm**: "Report exported to {path}" with summary stats
 
-See [REPORTING.md - Export Report Templates](references/REPORTING.md#export-report-templates) for complete formats:
-   ```markdown
-   # E2E Reverse Engineering Report
+## Quick Template (Markdown)
 
-   **Generated**: {timestamp}
-   **Session Status**: {status}
-   **Iterations**: {iteration}/{max_iterations}
+```markdown
+# E2E Reverse Engineering Report
 
-   ## Summary
+**Generated**: {timestamp}
+**Target**: {base_url}
+**Status**: {status} | Iterations: {iteration}/{max_iterations}
 
-   - Total Pages Discovered: {pages_discovered}
-   - Pages Documented: {pages_documented}
-   - Total Scenarios: {scenarios_total}
-   - Average Quality Score: {avg_quality_score} / 1.0
+## Summary
 
-   ## Quality Breakdown
+- Pages Documented: {pages_documented} / {pages_discovered}
+- Total Scenarios: {scenarios_total}
+- Avg Scenarios/Feature: {avg_scenarios_per_feature}
 
-   | Quality Range | Pages | Percentage |
-   |---------------|-------|------------|
-   | 0.85+ (Excellent) | 3 | 25% |
-   | 0.70-0.84 (Good) | 4 | 33% |
-   | 0.50-0.69 (Fair) | 2 | 17% |
-   | <0.50 (Needs Work) | 3 | 25% |
+## Coverage Detail
 
-   ## Coverage Detail
+| Page | Visits | Scenarios | Status |
+|------|--------|-----------|--------|
+| /search | 2 | 6 | documented |
 
-   | Page | Priority | Quality | Visits | Scenarios | Coverage Gaps |
-   |------|----------|---------|--------|-----------|---------------|
-   | /search | critical | 0.90 | 2 | 6 | tablet device |
-   | /apt/:id | high | 0.65 | 1 | 3 | mobile, error states, user role |
+## Feature Files
 
-   ## Recommendations
+| File | Scenarios |
+|------|-----------|
+| search.feature | 6 |
 
-   - Revisit 3 pages with quality < 0.50
-   - Add missing error state scenarios across 5 pages
-   - Document mobile variants for 4 pages
+## Recommendations
 
-   ## Feature Files
+- Pages with fewest scenarios need revisiting
+- Undocumented pages remaining: {count}
+```
 
-   - search.feature (6 scenarios, quality: 0.90)
-   - apartment-detail.feature (3 scenarios, quality: 0.65)
-
-   ## Configuration
-
-   - Base URL: {base_url}
-   - Devices: {device_names}
-   - Language: {language}
-   ```
-
-   **JSON format** (`.claude/e2e-reverse-report.json`):
-   ```json
-   {
-     "generated_at": "ISO8601",
-     "session": {
-       "status": "running",
-       "iteration": 7,
-       "max_iterations": 15
-     },
-     "coverage": {
-       "pages_discovered": 12,
-       "pages_documented": 8,
-       "scenarios_total": 42,
-       "avg_quality_score": 0.72
-     },
-     "quality_distribution": {
-       "excellent": 3,
-       "good": 4,
-       "fair": 2,
-       "needs_work": 3
-     },
-     "pages": [
-       {
-         "path": "/search",
-         "priority": "critical",
-         "quality_score": 0.90,
-         "scenarios": 6,
-         "coverage_gap_score": 0.10,
-         "coverage": {
-           "states_covered": ["happy-path", "empty-state", "error", "loading"],
-           "devices_covered": ["desktop", "mobile"],
-           "roles_covered": ["anonymous", "user"]
-         }
-       }
-     ],
-     "feature_files": [
-       {
-         "path": "e2e/features/search.feature",
-         "scenarios": 6
-       }
-     ],
-     "recommendations": [...]
-   }
-   ```
-
-   **HTML format** (`.claude/e2e-reverse-report.html`):
-   - Full styled report with tables
-   - Progress indicators for quality scores
-   - Sortable/filterable tables
-   - Links to feature files
-
-5. **Save report**
-   - Write to `.claude/e2e-reverse-report.{format}`
-   - Confirm to user: "Report exported to {path}"
-   - Show summary stats in confirmation
+See [REPORTING.md](references/REPORTING.md) for JSON and HTML templates.
