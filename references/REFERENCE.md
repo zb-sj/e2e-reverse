@@ -926,6 +926,7 @@ iteration: 3
 max_iterations: 15
 started_at: "2026-02-04T10:00:00Z"
 paused_at: null
+session_count: 1
 
 coverage:
   pages_discovered: 12

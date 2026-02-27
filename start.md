@@ -209,6 +209,7 @@ Do NOT proceed to EXPLORE without completing mobile captures.
 ### Completion
 
 Output `<promise>E2E_COMPLETE</promise>` when max_iterations reached.
+State persists — user can run another session to deepen coverage.
 ```
 
 **Note**: Replace placeholders when writing:
@@ -402,8 +403,6 @@ while (current_iteration <= max_iterations) {
 output("<promise>E2E_COMPLETE</promise>")
 ```
 
-6. **NEVER** declare E2E_COMPLETE before reaching max_iterations unless user explicitly stops
-
 **Why this matters**: If Ralph outputs a summary and stops, the session may be terminated or crunched. Continuous execution ensures all iterations complete within a single session.
 
 ## Error Recovery
@@ -586,29 +585,32 @@ Ralph tracks progress in `.claude/ralph-loop.local.md`.
   - coverage analysis (states/devices/roles covered vs missing)
   - scenario_count (from `grep -c "Scenario:"`)
 
-**On session start**, check `.claude/ralph-loop.local.md`. If missing, start fresh from iteration 1.
+**On session start**, check `.claude/ralph-loop.local.md`:
+- **If missing**: Start fresh — initialize state with iteration: 0, session_count: 1
+- **If exists (any status including "complete")**: Resume —
+  1. Reset `iteration` to 0 (new session gets its own iteration budget)
+  2. Set `status: running`, `active: true`
+  3. Increment `session_count`
+  4. **Keep all existing data**: visit_history, coverage, pages_discovered, pages_documented
+  5. Page selection algorithm naturally prioritizes coverage gaps and low-quality pages
 
 **Complete documentation**: See [REFERENCE.md - State File Reference](references/REFERENCE.md#state-file-reference) for full structure.
 
 ## Completion Criteria
 
-**Completion Guards (ALL must be true):**
-1. `current_iteration >= max_iterations` OR user manually stops
-2. At least 50% of discovered pages have been documented
-3. If config has mobile devices: at least one page has mobile screenshots
+Ralph declares E2E_COMPLETE when `current_iteration >= max_iterations` OR user manually stops.
 
-Do NOT declare E2E_COMPLETE just because "all currently pending pages are documented" —
-there may be undiscovered pages. Run all iterations.
+Coverage is never "done" — the user can always run another session to deepen it.
+State persists across sessions, so progress is never lost.
 
-Output `<promise>E2E_COMPLETE</promise>` when the above guards are satisfied.
+Output `<promise>E2E_COMPLETE</promise>` when max_iterations reached.
 
-**Quality Indicators** (not completion gates):
+**Quality Indicators** (for user reference, not completion gates):
+- Pages documented: `pages_documented / pages_discovered`
+- Coverage gaps: Pages with missing states/devices need revisiting
+- Session count: How many sessions have been run
 
-- Pages documented: Track how many pages have feature files
-- Quick progress metric: `pages_documented / pages_discovered`
-- Coverage gaps: Pages with missing states/devices need attention
-
-**Note**: Testing is never truly "complete" — use quality metrics to decide when sufficient coverage is reached.
+**Note**: Testing is never truly "complete" — run more sessions to improve coverage.
 
 ## Start Session
 
