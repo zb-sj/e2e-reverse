@@ -95,6 +95,8 @@ Done once on desktop (device-agnostic exploration):
 
 Aim for 3+ state screenshots per page. Don't settle for only the initial state.
 
+**⚠️ MANDATORY: Interact with at least 3 elements per page** (tabs, filters, buttons, links). Capture a screenshot for each resulting state. Do NOT skip EXPLORE and move straight to DOCUMENT — initial-only coverage is insufficient.
+
 ### 4. DOCUMENT — Write Gherkin
 
 **Rules:**
@@ -106,6 +108,7 @@ Aim for 3+ state screenshots per page. Don't settle for only the initial state.
 - **Device tags**: Add @desktop/@mobile/@tablet where behavior differs; omit when identical
 - **Background for common setup**: Detect repeated Given steps across 2+ scenarios, extract to Background. See [GHERKIN-BEST-PRACTICES.md](GHERKIN-BEST-PRACTICES.md)
 - **Scenario Outline for data-driven tests**: Detect 3+ scenarios with identical structure but different data, convert to Scenario Outline
+- **Scenario Outline enforcement**: After writing, scan for 3+ scenarios with identical Given/When/Then structure but different nouns/data. Convert to Scenario Outline with Examples table. This is NOT optional.
 
 **Validation after writing (MANDATORY — do not skip):**
 
@@ -117,6 +120,7 @@ Run this checklist on every feature file after writing/updating:
 4. **Tags**: Feature has `@route()` tag, scenarios have priority tag (`@smoke`/`@regression`/`@edge-case`)
 5. **Device coverage**: If config has mobile, at least one `@mobile` scenario exists (or all scenarios are device-agnostic)
 6. **Vague steps**: No "Then it works", "Then success", or placeholder steps (TODO, TBD, ...)
+7. **Step ordering**: No `When` step appears after a `Then` step within any scenario (split into separate scenarios if needed)
 
 If any check fails, fix the issue immediately before proceeding. Log the fix in visit_history.warnings[].
 
@@ -160,7 +164,7 @@ Write the full state to `.claude/ralph-loop.local.md` using the Write tool (rewr
 
 **⚠️ MANDATORY: Write state file EVERY iteration. Not every 3rd, not at the end. EVERY iteration.**
 
-**Also write backup** to `{output_dir}/.ralph-state.md` (same content, dual-write for crash recovery).
+**Also write backup** to `{output_dir}/.ralph-state.md` — **identical content, written immediately after primary**. Both files must always match.
 
 **Key fields to update:**
 - `iteration`: increment
@@ -196,7 +200,7 @@ diversity       = page.page_type != last_visited_page_type ? 1.0 : 0.3
 final_score = (priority_score × 0.3) + (coverage_gap × 0.3) + (staleness × 0.2) + (diversity × 0.2) + random(0, 0.3)
 ```
 
-**Log the score breakdown** in `history[]` for the current iteration:
+**⚠️ MANDATORY: Log score_breakdown** in `history[]` for EVERY iteration. Entries without score_breakdown are invalid.
 
 ```yaml
 - iteration: N
@@ -214,6 +218,8 @@ final_score = (priority_score × 0.3) + (coverage_gap × 0.3) + (staleness × 0.
 **Selection process**: Separate undocumented vs documented pools. Use config.iteration.new_discovery_ratio to pick pool, then highest scored page from that pool.
 
 **Immediately start the next iteration.** Do not pause, do not summarize, do not wait for user input.
+
+**If all pages are documented and iterations remain**: Revisit pages with the lowest quality_score. Capture missing states (loading, empty, error) and missing devices. Do NOT waste iterations on "verification" or "final state updates."
 
 ## Continuous Execution (DO NOT PAUSE)
 

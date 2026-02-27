@@ -336,7 +336,7 @@ quality_score = (states_score × 0.4) + (devices_score × 0.35) + (scenarios_sco
 **How to calculate** (step by step for each page):
 
 1. Count `states_covered` from the page's coverage in state file (e.g., ["happy-path", "empty-state"] = 2)
-2. Look up `expected_states` from the page_type template below (e.g., entry-point expects 4 states)
+2. `expected_states` = number of states in the page_type template, **capped at 3** for scoring purposes (initial/happy-path counts as 1, plus 2 additional states like empty/loading/error/active)
 3. Count `devices_covered` from the page's coverage (e.g., ["desktop", "mobile"] = 2)
 4. Count `expected_devices` from config.devices (e.g., 2 if desktop + mobile configured)
 5. Get `scenario_count` from `grep -c "Scenario:" {feature_file}`
@@ -345,8 +345,8 @@ quality_score = (states_score × 0.4) + (devices_score × 0.35) + (scenarios_sco
 
 **Example**:
 ```
-Page /search (entry-point): states=3/4, devices=2/2, scenarios=6/3
-quality = (0.75 × 0.4) + (1.0 × 0.35) + (1.0 × 0.25) = 0.30 + 0.35 + 0.25 = 0.90
+Page /search (entry-point): states=2/3, devices=2/2, scenarios=6/3
+quality = (0.67 × 0.4) + (1.0 × 0.35) + (1.0 × 0.25) = 0.268 + 0.35 + 0.25 = 0.87
 ```
 
 **avg_quality_score** = sum of all page quality_scores / number of documented pages. Recalculate every iteration.
