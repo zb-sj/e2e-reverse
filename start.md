@@ -182,9 +182,11 @@ For detailed instructions, read these files from the skill directory:
 
 3. **Read state**: `.claude/ralph-loop.local.md` for iteration count
 
+4. **Create screenshot dir**: `mkdir -p {screenshot_dir}/{feature}/` (BEFORE any browser_take_screenshot)
+
 ### Core Loop Summary
 
-1. NAVIGATE → 2. CAPTURE (desktop first, then mobile) → 3. EXPLORE states → 4. DOCUMENT Gherkin → 5. UPDATE state → 6. SELECT next page → **IMMEDIATELY CONTINUE**
+1. NAVIGATE → 2. CAPTURE DESKTOP → 3. CAPTURE MOBILE (DO NOT SKIP) → 4. EXPLORE states → 5. DOCUMENT Gherkin → 6. UPDATE state → 7. SELECT next page → **IMMEDIATELY CONTINUE**
 
 **⚠️ CRITICAL: DO NOT PAUSE BETWEEN ITERATIONS**
 - After step 6, immediately start the next iteration
@@ -200,6 +202,9 @@ For mobile/tablet devices, use `browser_run_code` with route interception + addI
 **Full code**: Read `{skill_dir}/references/BROWSER-EXAMPLES.md` section "Mobile View - Option B"
 
 **Capture order**: Desktop devices first → Mobile/tablet with emulation → `browser_close()` to reset
+
+**⚠️ Step 3 is MANDATORY** when config has mobile/tablet devices.
+Do NOT proceed to EXPLORE without completing mobile captures.
 
 ### Completion
 
@@ -238,7 +243,7 @@ For each feature, document:
 
 ## Core Loop
 
-For each iteration, execute these 6 steps sequentially:
+For each iteration, execute these 7 steps sequentially:
 
 ### 1. NAVIGATE
 
@@ -248,7 +253,7 @@ If configured, clear browser state first:
 - Clear cookies/local storage (if session_management.reset_between_iterations: true)
 - Navigate to base_url (if session_management.reset_to_homepage: true)
 
-### 2. CAPTURE — Screenshot all devices
+### 2. CAPTURE DESKTOP
 
 **Before screenshots, create directory:**
 
@@ -256,14 +261,14 @@ If configured, clear browser state first:
 mkdir -p {screenshot_dir}/{feature}/
 ```
 
-**Phase A: Desktop devices**
-
-For each desktop device in config.devices:
+For each desktop device in config.devices (width >= 768):
 - `browser_resize` to dimensions (e.g., 1280x800)
 - `browser_snapshot` → store as {device}_snapshot
 - `browser_take_screenshot` → `{screenshot_dir}/{feature}/initial.{device}.png`
 
-**Phase B: Mobile/tablet devices (with emulation)**
+### 3. CAPTURE MOBILE (DO NOT SKIP)
+
+**⚠️ DO NOT SKIP: If config has mobile/tablet devices, you MUST execute this step. Check config.devices for any device with width < 768.**
 
 For each mobile/tablet device:
 1. `browser_resize` to device dimensions FIRST (e.g., 390x844)
@@ -275,9 +280,7 @@ For each mobile/tablet device:
 4. `browser_snapshot` → store as {device}_snapshot
 5. `browser_take_screenshot` → `{screenshot_dir}/{feature}/initial.{device}.png`
 
-**Phase C: Reset to desktop**
-
-After all mobile captures:
+**After all mobile captures — Reset to desktop:**
 1. `browser_close()` (clears all stacked init scripts and route handlers)
 2. `browser_navigate` to same URL (fresh browser, no emulation residue)
 3. `browser_resize` to desktop dimensions
@@ -285,7 +288,7 @@ After all mobile captures:
 **Screenshot naming**: `{feature}/{state}.{device}.png`
 - Examples: `search/initial.desktop.png`, `search/initial.mobile.png`, `search/loading.png`
 
-### 3. EXPLORE — Discover states
+### 4. EXPLORE — Discover states
 
 Done once on desktop (device-agnostic exploration):
 - Click interactive elements to discover states (loading, error, empty, etc.)
@@ -298,7 +301,7 @@ Compare desktop vs mobile snapshots to identify device-specific behaviors:
 - Desktop: dropdown appears inline → Mobile: full-screen overlay opens
 - Flag scenarios needing device-specific variants with `@desktop`/`@mobile` tags
 
-### 4. DOCUMENT — Write Gherkin
+### 5. DOCUMENT — Write Gherkin
 
 **Rules:**
 - **One feature per file**: Create separate .feature files (e.g., search.feature, user-profile.feature)
@@ -348,7 +351,7 @@ Feature: Property Search
       Then empty state message appears
 ```
 
-### 5. UPDATE — Write state file
+### 6. UPDATE — Write state file
 
 Write the full state to `.claude/ralph-loop.local.md` using the Write tool.
 
@@ -360,7 +363,7 @@ Write the full state to `.claude/ralph-loop.local.md` using the Write tool.
 
 **Use `scenario_count` from grep** — do not manually count scenarios.
 
-### 6. SELECT — Pick next page and continue
+### 7. SELECT — Pick next page and continue
 
 Use weighted scoring to select the next page:
 
@@ -385,7 +388,8 @@ See [references/FORMULAS.md](references/FORMULAS.md) for full calculation detail
 ```pseudocode
 while (current_iteration <= max_iterations) {
   navigate_to_page()
-  capture_all_devices()    // desktop first, then mobile, then reset
+  capture_desktop_devices()
+  capture_mobile_devices()   // DO NOT SKIP
   explore_states()
   document_gherkin()
   update_state()
@@ -397,6 +401,8 @@ while (current_iteration <= max_iterations) {
 
 output("<promise>E2E_COMPLETE</promise>")
 ```
+
+6. **NEVER** declare E2E_COMPLETE before reaching max_iterations unless user explicitly stops
 
 **Why this matters**: If Ralph outputs a summary and stops, the session may be terminated or crunched. Continuous execution ensures all iterations complete within a single session.
 
@@ -586,7 +592,15 @@ Ralph tracks progress in `.claude/ralph-loop.local.md`.
 
 ## Completion Criteria
 
-Output `<promise>E2E_COMPLETE</promise>` when max_iterations reached or user manually stops.
+**Completion Guards (ALL must be true):**
+1. `current_iteration >= max_iterations` OR user manually stops
+2. At least 50% of discovered pages have been documented
+3. If config has mobile devices: at least one page has mobile screenshots
+
+Do NOT declare E2E_COMPLETE just because "all currently pending pages are documented" —
+there may be undiscovered pages. Run all iterations.
+
+Output `<promise>E2E_COMPLETE</promise>` when the above guards are satisfied.
 
 **Quality Indicators** (not completion gates):
 
