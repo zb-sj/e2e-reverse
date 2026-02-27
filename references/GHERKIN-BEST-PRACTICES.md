@@ -161,7 +161,40 @@ Feature: Property Search
       Then only studio apartments appear
 ```
 
-### 6. Device-Specific Scenarios
+### 6. Sub-Route Tags for Tab-Heavy Pages
+
+When a page has multiple distinct tab views, use `@route()` tags at the Rule level to distinguish them:
+
+```gherkin
+@offer @route(/offer) @role(anonymous)
+Feature: Property Offers
+  Browse commercial and government property offers.
+
+  @route(/offer/commercial)
+  Rule: Commercial Offers Tab
+    Scenario: View commercial property listings
+      Given user is on offers page
+      When user selects commercial tab
+      Then commercial property listings appear
+
+  @route(/offer/government)
+  Rule: Government Offers Tab
+    Scenario: View government property listings
+      Given user is on offers page
+      When user selects government tab
+      Then government property listings appear
+
+  @route(/offer/result)
+  Rule: Offer Results Tab
+    Scenario: View offer analysis results
+      Given user is on offers page
+      When user selects results tab
+      Then offer analysis dashboard appears
+```
+
+This helps distinguish states when multiple tabs share one URL but present fundamentally different content.
+
+### 7. Device-Specific Scenarios
 
 Use `@desktop`, `@mobile`, `@tablet` tags when behavior differs.
 
@@ -191,7 +224,7 @@ Scenario: Search overlay on mobile
   And keyboard appears automatically
 ```
 
-### 7. Meaningful Step Language
+### 8. Meaningful Step Language
 
 Use domain terminology, not technical jargon.
 
@@ -211,7 +244,7 @@ Scenario: Search returns available properties
   And property count is shown
 ```
 
-### 8. State Coverage
+### 9. State Coverage
 
 Document all meaningful states, not just happy paths.
 
@@ -251,7 +284,7 @@ Feature: Property Detail Page
       And retry button is available
 ```
 
-### 9. Given-When-Then Structure
+### 10. Given-When-Then Structure
 
 Follow the standard structure strictly.
 
@@ -278,7 +311,7 @@ Scenario: Proper structure
   And result count is displayed
 ```
 
-### 10. Avoid Technical Implementation Details
+### 11. Avoid Technical Implementation Details
 
 Don't reference UI elements, HTTP codes, or database operations.
 

@@ -321,56 +321,37 @@ Session ends when max_iterations reached or user manually stops.
 
 ### Quality Score Configuration
 
-Quality scores are calculated using configurable weights:
+Quality scores are calculated per page using a simple, computable formula:
 
-```yaml
-quality_scoring:
-  # Component weights (must sum to 1.0)
-  weights:
-    state_coverage: 0.4        # How many standard states covered
-    device_coverage: 0.25      # How many devices documented
-    role_coverage: 0.15        # How many user roles tested
-    scenario_diversity: 0.20   # Variety of scenario types
-
-  # State coverage scoring
-  state_scoring:
-    critical_state_weight: 0.3    # Impact of missing critical state
-    high_state_weight: 0.2        # Impact of missing high priority state
-    medium_state_weight: 0.1      # Impact of missing medium/low state
-
-  # Device coverage expectations
-  device_expectations:
-    desktop: required             # Must document
-    mobile: required              # Must document
-    tablet: optional              # Nice to have
-
-  # Role coverage expectations (page-type specific)
-  role_expectations:
-    entry-point:
-      - anonymous                 # Must cover guest users
-    feature:
-      - anonymous
-      - user                      # Authenticated users
-    utility:
-      - user                      # Usually requires auth
-```
-
-**Formula**:
+**Formula** (Ralph MUST calculate this, not fabricate):
 
 ```
-quality_score = (
-  (states_covered / expected_states) × state_coverage_weight +
-  (devices_covered / expected_devices) × device_coverage_weight +
-  (roles_covered / expected_roles) × role_coverage_weight +
-  scenario_diversity_score × scenario_diversity_weight
-)
+states_score   = states_covered.length / expected_states.length
+devices_score  = devices_covered.length / expected_devices.length
+scenarios_score = min(scenario_count / min_scenarios_per_feature, 1.0)
+
+quality_score = (states_score × 0.4) + (devices_score × 0.35) + (scenarios_score × 0.25)
 ```
 
-**Benefits**:
+**How to calculate** (step by step for each page):
 
-- Customize scoring per project
-- Adjust weights based on priorities
-- Add new scoring components easily
+1. Count `states_covered` from the page's coverage in state file (e.g., ["happy-path", "empty-state"] = 2)
+2. Look up `expected_states` from the page_type template below (e.g., entry-point expects 4 states)
+3. Count `devices_covered` from the page's coverage (e.g., ["desktop", "mobile"] = 2)
+4. Count `expected_devices` from config.devices (e.g., 2 if desktop + mobile configured)
+5. Get `scenario_count` from `grep -c "Scenario:" {feature_file}`
+6. Get `min_scenarios_per_feature` from config (default 3)
+7. Plug into formula above
+
+**Example**:
+```
+Page /search (entry-point): states=3/4, devices=2/2, scenarios=6/3
+quality = (0.75 × 0.4) + (1.0 × 0.35) + (1.0 × 0.25) = 0.30 + 0.35 + 0.25 = 0.90
+```
+
+**avg_quality_score** = sum of all page quality_scores / number of documented pages. Recalculate every iteration.
+
+**⚠️ NEVER fabricate scores.** If you cannot calculate, set to `null` and note in warnings.
 
 ### Coverage Expectations by Page Type
 
@@ -516,7 +497,7 @@ cache:
   cache_dir: ".claude/e2e-reverse-cache"
 
 performance:
-  state_file_write_interval: 3         # Write state every N iterations
+  state_file_write_interval: 1         # Write state EVERY iteration (mandatory)
   checkpoint_on_page_complete: true    # Write when page quality reaches target
 
 # Device configurations
@@ -866,12 +847,11 @@ cache:
 
 Batched writes to reduce disk I/O overhead during long sessions:
 
-**state_file_write_interval** (3 default)
+**state_file_write_interval** (1 default — write every iteration)
 - Write state file every N iterations
-- Reduces disk I/O from 15 writes (1 per iteration) to 5 writes (every 3 iterations)
-- Higher values = less I/O, but longer gap before state is persisted
-- Set to `1` to write every iteration (safest, but slower)
-- Set to `5` or higher for faster iterations (riskier if interrupted)
+- Default is 1 (every iteration) to prevent data loss and state drift
+- Higher values reduce I/O but risk losing work on crash/interruption
+- Recommended: keep at 1 unless experiencing performance issues
 
 **checkpoint_on_page_complete** (`true` recommended)
 - Write state immediately when a page reaches target quality_score

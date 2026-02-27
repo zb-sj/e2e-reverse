@@ -31,7 +31,7 @@ If configured, clear browser state first:
 - Clear cookies/local storage (if session_management.reset_between_iterations: true)
 - Navigate to base_url (if session_management.reset_to_homepage: true)
 
-### 2. CAPTURE
+### 2. CAPTURE — All configured devices (MANDATORY)
 
 **Before screenshots, create directory:**
 
@@ -39,22 +39,42 @@ If configured, clear browser state first:
 mkdir -p {screenshot_dir}/{feature}/
 ```
 
-For each desktop device in config.devices (width >= 768):
-- `browser_resize` to dimensions (e.g., 1280x800)
-- `browser_snapshot` → store as {device}_snapshot
-- `browser_take_screenshot` → `{screenshot_dir}/{feature}/initial.{device}.png`
+**⚠️ MANDATORY: Capture EVERY device in config.devices. Do NOT skip any device. Do NOT defer mobile to later iterations.**
 
-**Mobile/tablet devices** (width < 768): If present in config, capture after all desktop devices.
+**Phase A — Desktop devices** (width >= 768):
 
-For each mobile/tablet device:
+For each desktop device in config.devices:
+1. `browser_resize` to dimensions (e.g., 1280x800)
+2. `browser_snapshot` → store as {device}_snapshot
+3. `browser_take_screenshot` → `{screenshot_dir}/{feature}/initial.{device}.png`
+
+**Phase B — Mobile/tablet devices** (width < 768):
+
+**REQUIRED for every page, every iteration.** Not optional, not deferrable.
+
+For each mobile/tablet device in config.devices:
 1. `browser_resize` to device dimensions
 2. **REQUIRED**: `browser_run_code` with UA injection from [BROWSER-EXAMPLES.md](BROWSER-EXAMPLES.md) "Mobile View - Option B". `browser_resize` alone is NOT enough — servers check the HTTP User-Agent header.
 3. `browser_snapshot` + `browser_take_screenshot`
 
-**After all mobile captures**: `browser_close()` then `browser_navigate` to same URL to reset.
+**Phase C — Reset to desktop** (REQUIRED after any mobile capture):
+
+```
+browser_close()
+browser_navigate({ url: targetUrl })  // Use stored URL from step 1
+browser_resize({ width: 1280, height: 800 })
+```
+
+**⚠️ `addInitScript()` stacks permanently.** The ONLY guaranteed reset is `browser_close()`. Always close and reopen after mobile captures.
 
 **Screenshot naming**: `{feature}/{state}.{device}.png`
 - Examples: `search/initial.desktop.png`, `search/initial.mobile.png`, `search/loading.png`
+
+**Checklist** (verify before moving to step 3):
+- [ ] All desktop devices captured
+- [ ] All mobile/tablet devices captured with UA injection
+- [ ] `browser_close()` called after mobile captures
+- [ ] Browser reopened and resized to desktop for EXPLORE step
 
 ### 3. EXPLORE — Discover states
 
@@ -64,6 +84,16 @@ Done once on desktop (device-agnostic exploration):
   - Capture snapshot and screenshot
   - Note if state differs across devices
   - Use naming: `{feature}/{state}.png` (device-agnostic) or `{feature}/{state}.{device}.png`
+
+**Target states to capture** (prioritized):
+1. **initial** — default page load (already captured in CAPTURE)
+2. **loading** — skeleton, spinner, or progress bar during async ops
+3. **empty-state** — no data available, first-time user experience
+4. **error** — network failure, validation error, permission denied
+5. **active/expanded** — tabs selected, filters open, modals shown
+6. **partial** — paginated results, "load more" visible
+
+Aim for 3+ state screenshots per page. Don't settle for only the initial state.
 
 ### 4. DOCUMENT — Write Gherkin
 
@@ -77,12 +107,20 @@ Done once on desktop (device-agnostic exploration):
 - **Background for common setup**: Detect repeated Given steps across 2+ scenarios, extract to Background. See [GHERKIN-BEST-PRACTICES.md](GHERKIN-BEST-PRACTICES.md)
 - **Scenario Outline for data-driven tests**: Detect 3+ scenarios with identical structure but different data, convert to Scenario Outline
 
-**Quick validation after writing:**
-- Feature: declaration exists with description
-- Every Scenario has Given/When/Then steps
-- No duplicate scenario names within a feature
+**Validation after writing (MANDATORY — do not skip):**
 
-**After writing, count scenarios accurately:**
+Run this checklist on every feature file after writing/updating:
+
+1. **Syntax**: Feature declaration exists with description
+2. **Steps**: Every Scenario has at least Given/When/Then
+3. **Uniqueness**: No duplicate scenario names within the feature
+4. **Tags**: Feature has `@route()` tag, scenarios have priority tag (`@smoke`/`@regression`/`@edge-case`)
+5. **Device coverage**: If config has mobile, at least one `@mobile` scenario exists (or all scenarios are device-agnostic)
+6. **Vague steps**: No "Then it works", "Then success", or placeholder steps (TODO, TBD, ...)
+
+If any check fails, fix the issue immediately before proceeding. Log the fix in visit_history.warnings[].
+
+**After writing and validating, count scenarios accurately:**
 
 ```bash
 grep -c "Scenario:" {output_dir}/{feature-name}.feature
@@ -116,32 +154,64 @@ Feature: Property Search
 
 **Tag system**: See [REFERENCE.md](REFERENCE.md) for complete tag reference (feature, priority, state, role, device tags).
 
-### 5. UPDATE — Write state file
+### 5. UPDATE — Write state file (EVERY iteration)
 
 Write the full state to `.claude/ralph-loop.local.md` using the Write tool (rewrite entire file, not Edit).
+
+**⚠️ MANDATORY: Write state file EVERY iteration. Not every 3rd, not at the end. EVERY iteration.**
+
+**Also write backup** to `{output_dir}/.ralph-state.md` (same content, dual-write for crash recovery).
 
 **Key fields to update:**
 - `iteration`: increment
 - `status`: running
 - `visit_history`: update page entry with visit_count, last_visited, status, coverage, scenario_count
 - `coverage.pages_discovered`, `coverage.pages_documented`, `coverage.scenarios_total`
+- `coverage.avg_quality_score`: **Recalculate** using formula from REFERENCE.md § Quality Score Configuration
 
 **Use `scenario_count` from grep** — do not manually count scenarios.
 
+**Calculate quality_score per page** (do not fabricate):
+```
+states_score   = states_covered.length / expected_states.length
+devices_score  = devices_covered.length / expected_devices.length
+scenarios_score = min(scenario_count / min_scenarios_per_feature, 1.0)
+quality_score  = (states_score × 0.4) + (devices_score × 0.35) + (scenarios_score × 0.25)
+```
+
+**Update `devices_missing` accurately**: Only remove a device from `devices_missing` when you actually captured screenshots for that device on this page. Never silently delete the field.
+
 ### 6. SELECT — Pick next page and continue
 
-Use weighted scoring to select the next page:
+**⚠️ MANDATORY: Use the scoring formula below. Do NOT pick pages by intuition.**
+
+For each candidate page, calculate:
 
 ```
-final_score = (priority × 0.3) + (coverage_gap × 0.3) + (staleness × 0.2) + (diversity × 0.2) + random(0, 0.3)
+priority_score  = { critical: 1.0, high: 0.75, medium: 0.5, low: 0.25 }[page.priority]
+coverage_gap    = 1 - min(scenario_count / min_scenarios_per_feature, 1.0)
+staleness       = page.visit_count == 0 ? 1.0 : 0.5  // simple: unvisited=1.0, visited=0.5
+diversity       = page.page_type != last_visited_page_type ? 1.0 : 0.3
+
+final_score = (priority_score × 0.3) + (coverage_gap × 0.3) + (staleness × 0.2) + (diversity × 0.2) + random(0, 0.3)
 ```
 
-- **Priority** (0-1): critical=1.0, high=0.75, medium=0.5, low=0.25
-- **Coverage Gap** (0-1): 1 - (scenario_count / target_scenarios_per_feature)
-- **Staleness** (0-1): Higher for pages not visited recently
-- **Diversity** (0-1): Prefer pages with different page_type than last visited
+**Log the score breakdown** in `history[]` for the current iteration:
 
-**Selection process**: Separate undocumented vs documented pools. Use config.iteration.new_discovery_ratio to pick pool, then highest scored page.
+```yaml
+- iteration: N
+  page: /selected-page
+  action: "..."
+  score_breakdown:
+    priority: 0.75
+    coverage_gap: 0.6
+    staleness: 1.0
+    diversity: 1.0
+    random: 0.15
+    final: 0.88
+```
+
+**Selection process**: Separate undocumented vs documented pools. Use config.iteration.new_discovery_ratio to pick pool, then highest scored page from that pool.
 
 **Immediately start the next iteration.** Do not pause, do not summarize, do not wait for user input.
 

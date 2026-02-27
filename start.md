@@ -100,15 +100,21 @@ Write `.claude/e2e-reverse-instructions.md` so Ralph can access context in each 
 
 ## Tools (load via ToolSearch each iteration)
 
-browser_navigate, browser_resize, browser_snapshot, browser_take_screenshot, browser_click, browser_type, browser_wait_for, browser_run_code
+browser_navigate, browser_resize, browser_snapshot, browser_take_screenshot, browser_click, browser_type, browser_wait_for, browser_run_code, browser_close
 
-## Reminders
+## Critical Rules (NON-NEGOTIABLE)
 
-- `mkdir -p {screenshot_dir}/{feature}/` BEFORE any browser_take_screenshot
-- Mobile devices require `browser_run_code` with UA injection — `browser_resize` alone is NOT enough
-- Use `grep -c "Scenario:"` for accurate counts — do not count manually
-- DO NOT PAUSE between iterations — continue until max_iterations reached
-- Output `<promise>E2E_COMPLETE</promise>` when done
+1. **Capture ALL devices every iteration** — desktop AND mobile. Do NOT defer mobile to later iterations. See CORE-LOOP.md step 2.
+2. **`browser_close()` after mobile captures** — `addInitScript()` stacks permanently. Only `browser_close()` resets UA. Then `browser_navigate` to stored URL.
+3. **Write state file EVERY iteration** — primary: `.claude/ralph-loop.local.md`, backup: `{output_dir}/.ralph-state.md`. Not every 3rd. EVERY iteration.
+4. **Calculate quality scores with formula** — NEVER fabricate scores. Use: `(states_score × 0.4) + (devices_score × 0.35) + (scenarios_score × 0.25)`. See REFERENCE.md.
+5. **Validate Gherkin after writing** — check syntax, tags, device coverage, vague steps. Fix before proceeding.
+6. **Use scoring formula for page selection** — calculate and log score_breakdown in history[]. Do NOT pick pages by intuition.
+7. **Track `devices_missing` accurately** — only remove a device when you actually captured it. Never silently delete the field.
+8. **`mkdir -p {screenshot_dir}/{feature}/`** BEFORE any browser_take_screenshot
+9. **`grep -c "Scenario:"`** for accurate counts — do not count manually
+10. **DO NOT PAUSE** between iterations — continue until max_iterations reached
+11. **Output `<promise>E2E_COMPLETE</promise>`** when done
 ```
 
 Replace `{skill_dir}` with the actual skill directory path and `{screenshot_dir}` with the config value.
