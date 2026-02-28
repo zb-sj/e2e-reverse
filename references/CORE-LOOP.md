@@ -2,6 +2,8 @@
 
 Read this file at the start of each iteration. This is the authoritative source for iteration logic.
 
+**IMPORTANT**: Follow [ITERATION-CHECKLIST.md](ITERATION-CHECKLIST.md) step by step. Print confirmation for each step. The checklist is the authoritative execution guide; this file provides the detailed rationale.
+
 ## Mission
 
 Reverse-engineer the app into Gherkin documentation so detailed that another AI agent could recreate the app from scratch.
@@ -221,6 +223,18 @@ final_score = (priority_score × 0.3) + (coverage_gap × 0.3) + (staleness × 0.
 
 **If all pages are documented and iterations remain**: Revisit pages with the lowest quality_score. Capture missing states (loading, empty, error) and missing devices. Do NOT waste iterations on "verification" or "final state updates."
 
+## Revisit Protocol
+
+When revisiting a documented page, follow the SAME 6 steps as a new page:
+1. NAVIGATE — same as new visit
+2. CAPTURE — **must recapture if any device is outdated or missing states**
+3. EXPLORE — **interact with 3+ NEW elements** not covered in existing scenarios
+4. DOCUMENT — **add NEW scenarios** for discovered states. Target: loading, empty, error states. If 3+ similar scenarios exist, convert to Scenario Outline.
+5. UPDATE — recalculate quality_score, update scenario_count via grep
+6. SELECT — continue to next
+
+**A revisit that adds zero scenarios is a wasted iteration.** If existing coverage seems comprehensive, explore deeper: try invalid inputs, check loading states, test edge cases.
+
 ## Continuous Execution (DO NOT PAUSE)
 
 **Ralph MUST continue iterating without stopping.** These rules are non-negotiable:
@@ -229,6 +243,8 @@ final_score = (priority_score × 0.3) + (coverage_gap × 0.3) + (staleness × 0.
 2. **NEVER** output "I will continue in the next iteration" and stop
 3. **NEVER** wait for user input between iterations
 4. **NEVER** end the turn with a summary of what was done
+5. **NEVER** set status to "completed" before reaching max_iterations
+6. **NEVER** claim "diminishing returns" as a reason to stop
 
 ```pseudocode
 while (current_iteration <= max_iterations) {

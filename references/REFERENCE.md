@@ -955,6 +955,7 @@ visit_history:
 
     # Quality metrics
     scenario_count: 6             # from grep -c "Scenario:" (accurate count)
+    quality_score: 0.87           # calculated, not fabricated — see formula in Quality Score Configuration
 
     # Error tracking
     errors: []                    # critical errors that blocked iteration
@@ -979,6 +980,7 @@ visit_history:
       roles_covered: ["anonymous"]
       roles_missing: ["user"]
     scenario_count: 1
+    quality_score: 0.38           # (1/3×0.4) + (1/2×0.35) + (1/3×0.25)
 
   /my:
     visit_count: 0

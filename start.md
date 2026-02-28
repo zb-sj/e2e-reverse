@@ -91,6 +91,7 @@ Write `.claude/e2e-reverse-instructions.md` so Ralph can access context in each 
 
 | What | Path |
 |------|------|
+| Iteration checklist (FOLLOW EVERY STEP) | `{skill_dir}/references/ITERATION-CHECKLIST.md` |
 | Core loop (READ EVERY ITERATION) | `{skill_dir}/references/CORE-LOOP.md` |
 | Gherkin conventions & tags | `{skill_dir}/references/REFERENCE.md` |
 | Gherkin patterns | `{skill_dir}/references/GHERKIN-BEST-PRACTICES.md` |
@@ -104,7 +105,7 @@ browser_navigate, browser_resize, browser_snapshot, browser_take_screenshot, bro
 
 ## Critical Rules (NON-NEGOTIABLE)
 
-1. **Capture ALL devices every iteration** — desktop AND mobile. Do NOT defer mobile to later iterations. See CORE-LOOP.md step 2.
+1. **Capture ALL devices every iteration** — desktop AND mobile, including revisit iterations. Do NOT defer mobile to later iterations. See CORE-LOOP.md step 2.
 2. **`browser_close()` after mobile captures** — `addInitScript()` stacks permanently. Only `browser_close()` resets UA. Then `browser_navigate` to stored URL.
 3. **Write state file EVERY iteration** — primary: `.claude/ralph-loop.local.md`, backup: `{output_dir}/.ralph-state.md`. Not every 3rd. EVERY iteration.
 4. **Calculate quality scores with formula** — NEVER fabricate scores. Use: `(states_score × 0.4) + (devices_score × 0.35) + (scenarios_score × 0.25)`. See REFERENCE.md.
@@ -116,6 +117,8 @@ browser_navigate, browser_resize, browser_snapshot, browser_take_screenshot, bro
 10. **DO NOT PAUSE** between iterations — continue until max_iterations reached
 11. **Output `<promise>E2E_COMPLETE</promise>`** when done
 12. **If all pages documented, revisit lowest quality_score pages** for missing states/devices. Do NOT waste iterations on "verification" or "final state updates."
+13. **Follow ITERATION-CHECKLIST.md and print ✓ confirmation for each step** — the checklist is the authoritative execution guide
+14. **NEVER set status='completed' before max_iterations reached** — no "diminishing returns" early stops
 ```
 
 Replace `{skill_dir}` with the actual skill directory path and `{screenshot_dir}` with the config value.
