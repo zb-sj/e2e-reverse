@@ -5,6 +5,8 @@ Autonomous Gherkin documentation generation from live web applications using Ral
 ## Quick Start
 
 ```bash
+npx skills add zb-sj/e2e-reverse
+
 /e2e-reverse setup      # Configure project
 /e2e-reverse start      # Ralph explores autonomously
 /e2e-reverse export     # Generate report
