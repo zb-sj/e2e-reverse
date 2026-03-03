@@ -91,7 +91,6 @@ Write `.claude/e2e-reverse-instructions.md` so Ralph can access context in each 
 
 | What | Path |
 |------|------|
-| Iteration checklist (FOLLOW EVERY STEP) | `{skill_dir}/references/ITERATION-CHECKLIST.md` |
 | Core loop (READ EVERY ITERATION) | `{skill_dir}/references/CORE-LOOP.md` |
 | Gherkin conventions & tags | `{skill_dir}/references/REFERENCE.md` |
 | Gherkin patterns | `{skill_dir}/references/GHERKIN-BEST-PRACTICES.md` |
@@ -105,20 +104,20 @@ browser_navigate, browser_resize, browser_snapshot, browser_take_screenshot, bro
 
 ## Critical Rules (NON-NEGOTIABLE)
 
-1. **Capture ALL devices every iteration** — desktop AND mobile, including revisit iterations. Do NOT defer mobile to later iterations. See CORE-LOOP.md step 2.
-2. **`browser_close()` after mobile captures** — `addInitScript()` stacks permanently. Only `browser_close()` resets UA. Then `browser_navigate` to stored URL.
-3. **Write state file EVERY iteration** — primary: `.claude/ralph-loop.local.md`, backup: `{output_dir}/.ralph-state.md`. Not every 3rd. EVERY iteration.
-4. **Calculate quality scores with formula** — NEVER fabricate scores. Use: `(states_score × 0.4) + (devices_score × 0.35) + (scenarios_score × 0.25)`. See REFERENCE.md.
-5. **Validate Gherkin after writing** — check syntax, tags, device coverage, vague steps, step ordering (no When after Then). Fix before proceeding.
-6. **Use scoring formula for page selection** — calculate and log score_breakdown in history[] for EVERY iteration — entries without it are invalid. Do NOT pick pages by intuition.
-7. **Track `devices_missing` accurately** — only remove a device when you actually captured it. Never silently delete the field.
-8. **`mkdir -p {screenshot_dir}/{feature}/`** BEFORE any browser_take_screenshot
-9. **`grep -c "Scenario:"`** for accurate counts — do not count manually
-10. **DO NOT PAUSE** between iterations — continue until max_iterations reached
-11. **Output `<promise>E2E_COMPLETE</promise>`** when done
-12. **If all pages documented, revisit lowest quality_score pages** for missing states/devices. Do NOT waste iterations on "verification" or "final state updates."
-13. **Follow ITERATION-CHECKLIST.md and print ✓ confirmation for each step** — the checklist is the authoritative execution guide
-14. **NEVER set status='completed' before max_iterations reached** — no "diminishing returns" early stops
+1. **Print step output lines** — every step has a mandatory `→ STEP_NAME:` output. Print it EXACTLY as shown in CORE-LOOP.md. These outputs feed into later steps.
+2. **Capture ALL devices every iteration** — desktop AND mobile, including revisits. Print: `→ CAPTURE: devices=[...] (N/N)`
+3. **`browser_close()` after mobile captures** — `addInitScript()` stacks permanently. Only `browser_close()` resets UA.
+4. **EXPLORE 3+ interactions per page** — GATE: cannot proceed to DOCUMENT if < 3. Print: `→ EXPLORE: interactions=[...] (N/3)`
+5. **Validate Gherkin (7 checks)** — print each check result. Fix any NO before proceeding. Print: `→ DOCUMENT: ... validation=7/7`
+6. **Quality score = 5 booleans** — `(has_mobile + has_explore + has_scenarios + has_outline + has_validation) / 5`. Show components. NEVER assign without computing.
+7. **Write state file EVERY iteration** — primary + backup. Print: `→ UPDATE: quality=X.XX (mobile=N, explore=N, scenarios=N, outline=N, validation=N)`
+8. **Page selection by formula** — log score_breakdown in history[]. Print: `→ SELECT: next={page} (score=...)`
+9. **`mkdir -p {screenshot_dir}/{feature}/`** BEFORE any browser_take_screenshot
+10. **`grep -c "Scenario:"`** for accurate counts — do not count manually
+11. **DO NOT PAUSE** between iterations — continue until max_iterations reached
+12. **If all pages documented, revisit lowest quality_score pages** — target pages with quality < 1.0
+13. **NEVER set status='completed' before max_iterations reached** — no "diminishing returns" early stops
+14. **Output `<promise>E2E_COMPLETE</promise>`** when done
 ```
 
 Replace `{skill_dir}` with the actual skill directory path and `{screenshot_dir}` with the config value.

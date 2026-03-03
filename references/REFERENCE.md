@@ -321,37 +321,40 @@ Session ends when max_iterations reached or user manually stops.
 
 ### Quality Score Configuration
 
-Quality scores are calculated per page using a simple, computable formula:
+Quality scores use a **5-boolean checklist** that references outputs from the step chain. Each boolean is 0 or 1 — no arithmetic beyond counting.
 
-**Formula** (Ralph MUST calculate this, not fabricate):
+**Formula** (Ralph MUST compute from step outputs, not assign):
 
 ```
-states_score   = states_covered.length / expected_states.length
-devices_score  = devices_covered.length / expected_devices.length
-scenarios_score = min(scenario_count / min_scenarios_per_feature, 1.0)
+has_mobile       = 1 if "mobile" in devices_captured (from CAPTURE step output), else 0
+has_explore      = 1 if interactions.length >= 3 (from EXPLORE step output), else 0
+has_scenarios    = 1 if scenario_count >= 5 (from DOCUMENT step grep), else 0
+has_outline      = 1 if outline_count >= 1 (from DOCUMENT step grep), else 0
+has_validation   = 1 if validation == 7/7 (from DOCUMENT step checks), else 0
 
-quality_score = (states_score × 0.4) + (devices_score × 0.35) + (scenarios_score × 0.25)
+quality_score = (has_mobile + has_explore + has_scenarios + has_outline + has_validation) / 5
 ```
 
-**How to calculate** (step by step for each page):
+**Possible values**: 0.0, 0.2, 0.4, 0.6, 0.8, 1.0 — nothing in between.
 
-1. Count `states_covered` from the page's coverage in state file (e.g., ["happy-path", "empty-state"] = 2)
-2. `expected_states` = number of states in the page_type template, **capped at 3** for scoring purposes (initial/happy-path counts as 1, plus 2 additional states like empty/loading/error/active)
-3. Count `devices_covered` from the page's coverage (e.g., ["desktop", "mobile"] = 2)
-4. Count `expected_devices` from config.devices (e.g., 2 if desktop + mobile configured)
-5. Get `scenario_count` from `grep -c "Scenario:" {feature_file}`
-6. Get `min_scenarios_per_feature` from config (default 3)
-7. Plug into formula above
+**How to compute** (step by step):
+
+1. Check CAPTURE output: did devices_captured include "mobile"? → has_mobile
+2. Check EXPLORE output: was interactions list >= 3? → has_explore
+3. Run `grep -c "Scenario:" {feature_file}` → has_scenarios (>= 5)
+4. Run `grep -c "Scenario Outline:" {feature_file}` → has_outline (>= 1)
+5. Check DOCUMENT validation: all 7 checks passed? → has_validation
+6. Sum the 5 booleans, divide by 5
 
 **Example**:
 ```
-Page /search (entry-point): states=2/3, devices=2/2, scenarios=6/3
-quality = (0.67 × 0.4) + (1.0 × 0.35) + (1.0 × 0.25) = 0.268 + 0.35 + 0.25 = 0.87
+Page /search: mobile=1, explore=1, scenarios=1(8>=5), outline=0, validation=1
+quality = (1+1+1+0+1) / 5 = 0.80
 ```
 
 **avg_quality_score** = sum of all page quality_scores / number of documented pages. Recalculate every iteration.
 
-**⚠️ NEVER fabricate scores.** If you cannot calculate, set to `null` and note in warnings.
+**⚠️ NEVER assign a quality_score without showing the 5 boolean components.** If a step was skipped, the corresponding boolean MUST be 0.
 
 ### Coverage Expectations by Page Type
 
@@ -955,7 +958,7 @@ visit_history:
 
     # Quality metrics
     scenario_count: 6             # from grep -c "Scenario:" (accurate count)
-    quality_score: 0.87           # calculated, not fabricated — see formula in Quality Score Configuration
+    quality_score: 0.80           # (mobile=1 + explore=1 + scenarios=1 + outline=0 + validation=1) / 5
 
     # Error tracking
     errors: []                    # critical errors that blocked iteration
@@ -980,7 +983,7 @@ visit_history:
       roles_covered: ["anonymous"]
       roles_missing: ["user"]
     scenario_count: 1
-    quality_score: 0.38           # (1/3×0.4) + (1/2×0.35) + (1/3×0.25)
+    quality_score: 0.20           # (mobile=0 + explore=0 + scenarios=0 + outline=0 + validation=1) / 5
 
   /my:
     visit_count: 0
