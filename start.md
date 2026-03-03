@@ -104,23 +104,19 @@ browser_navigate, browser_resize, browser_snapshot, browser_take_screenshot, bro
 
 ## Critical Rules (NON-NEGOTIABLE)
 
-1. **Print step output lines** — every step has a mandatory `→ STEP_NAME:` output. Print it EXACTLY as shown in CORE-LOOP.md. These outputs feed into later steps.
-2. **Capture ALL devices every iteration** — desktop AND mobile, including revisits. Print: `→ CAPTURE: devices=[...] (N/N)`
-3. **`browser_close()` after mobile captures** — `addInitScript()` stacks permanently. Only `browser_close()` resets UA.
-4. **EXPLORE 3+ interactions per page** — GATE: cannot proceed to DOCUMENT if < 3. Print: `→ EXPLORE: interactions=[...] (N/3)`
-5. **Validate Gherkin (7 checks)** — print each check result. Fix any NO before proceeding. Print: `→ DOCUMENT: ... validation=7/7`
-6. **Quality score = 5 booleans** — `(has_mobile + has_explore + has_scenarios + has_outline + has_validation) / 5`. Show components. NEVER assign without computing.
-7. **Write state file EVERY iteration** — primary + backup. Print: `→ UPDATE: quality=X.XX (mobile=N, explore=N, scenarios=N, outline=N, validation=N)`
-8. **Page selection by formula** — log score_breakdown in history[]. Print: `→ SELECT: next={page} (score=...)`
-9. **`mkdir -p {screenshot_dir}/{feature}/`** BEFORE any browser_take_screenshot
-10. **`grep -c "Scenario:"`** for accurate counts — do not count manually
-11. **DO NOT PAUSE** between iterations — continue until max_iterations reached
-12. **If all pages documented, revisit lowest quality_score pages** — target pages with quality < 1.0
-13. **NEVER set status='completed' before max_iterations reached** — no "diminishing returns" early stops
-14. **Output `<promise>E2E_COMPLETE</promise>`** when done
+1. **ALL {max_iterations} iterations MUST execute** — no early exit. Not when "all pages documented." Not for "diminishing returns." When undocumented pages run out, REVISIT lowest quality_score pages. The ONLY stop condition is `iteration >= {max_iterations}`.
+2. **Capture ALL devices every iteration** — desktop AND mobile, including revisits. Use `browser_close()` after mobile to reset UA.
+3. **Interact with 3+ elements per page (Phase D)** — after device capture, click tabs/filters/buttons, screenshot each result. Store list in state file as `interactions_captured`.
+4. **Run `grep -c` after writing each feature file** — use the exact grep output for scenario_count and outline_count in state file. Do not count manually.
+5. **Quality score = 5 booleans / 5** — has_mobile, has_interactions(>=3), has_scenarios(>=5), has_outline(>=1), has_valid_gherkin(no When-after-Then). Show all 5 when writing state.
+6. **Write state file EVERY iteration** — primary `.claude/ralph-loop.local.md` + backup `{output_dir}/.ralph-state.md`.
+7. **`mkdir -p {screenshot_dir}/{feature}/`** BEFORE any browser_take_screenshot.
+8. **Page selection by formula** — log score_breakdown in history[]. When all pages documented, revisit lowest quality_score.
+9. **Scenario Outlines required** — scan for 3+ similar scenarios, convert to Outline with Examples table.
+10. **Output `<promise>E2E_COMPLETE</promise>`** ONLY when iteration >= {max_iterations}.
 ```
 
-Replace `{skill_dir}` with the actual skill directory path and `{screenshot_dir}` with the config value.
+Replace `{skill_dir}` with the actual skill directory path, `{screenshot_dir}` with the config value, and `{max_iterations}` with the config value.
 
 ## Step 6: Start Ralph Loop
 

@@ -321,40 +321,50 @@ Session ends when max_iterations reached or user manually stops.
 
 ### Quality Score Configuration
 
-Quality scores use a **5-boolean checklist** that references outputs from the step chain. Each boolean is 0 or 1 — no arithmetic beyond counting.
+Quality scores use a **5-boolean checklist**. Each boolean is 0 or 1 — no arithmetic beyond counting.
 
-**Formula** (Ralph MUST compute from step outputs, not assign):
+**Formula** (compute from grep output and captured data):
+
+| Boolean | Source | Condition |
+|---------|--------|-----------|
+| has_mobile | devices_captured list | "mobile" in list |
+| has_interactions | interactions_captured list | length >= 3 |
+| has_scenarios | `grep -c "Scenario:" {file}` | count >= 5 |
+| has_outline | `grep -c "Scenario Outline:" {file}` | count >= 1 |
+| has_valid_gherkin | self-check after writing | no When-after-Then |
 
 ```
-has_mobile       = 1 if "mobile" in devices_captured (from CAPTURE step output), else 0
-has_explore      = 1 if interactions.length >= 3 (from EXPLORE step output), else 0
-has_scenarios    = 1 if scenario_count >= 5 (from DOCUMENT step grep), else 0
-has_outline      = 1 if outline_count >= 1 (from DOCUMENT step grep), else 0
-has_validation   = 1 if validation == 7/7 (from DOCUMENT step checks), else 0
-
-quality_score = (has_mobile + has_explore + has_scenarios + has_outline + has_validation) / 5
+quality_score = (has_mobile + has_interactions + has_scenarios + has_outline + has_valid_gherkin) / 5
 ```
 
 **Possible values**: 0.0, 0.2, 0.4, 0.6, 0.8, 1.0 — nothing in between.
 
-**How to compute** (step by step):
+**State file template** — fill using actual grep output:
 
-1. Check CAPTURE output: did devices_captured include "mobile"? → has_mobile
-2. Check EXPLORE output: was interactions list >= 3? → has_explore
-3. Run `grep -c "Scenario:" {feature_file}` → has_scenarios (>= 5)
-4. Run `grep -c "Scenario Outline:" {feature_file}` → has_outline (>= 1)
-5. Check DOCUMENT validation: all 7 checks passed? → has_validation
-6. Sum the 5 booleans, divide by 5
-
-**Example**:
-```
-Page /search: mobile=1, explore=1, scenarios=1(8>=5), outline=0, validation=1
-quality = (1+1+1+0+1) / 5 = 0.80
+```yaml
+scenario_count: 8        # ← from: grep -c "Scenario:" {file}
+outline_count: 1         # ← from: grep -c "Scenario Outline:" {file}
+devices_captured: [desktop, mobile]
+interactions_captured: ["clicked tab X", "opened filter Y", "typed invalid Z"]
+quality_score: 0.80      # ← (1+1+1+1+0) / 5
 ```
 
 **avg_quality_score** = sum of all page quality_scores / number of documented pages. Recalculate every iteration.
 
 **⚠️ NEVER assign a quality_score without showing the 5 boolean components.** If a step was skipped, the corresponding boolean MUST be 0.
+
+### Quality Checklist (per feature)
+
+For each feature, aim to document:
+
+1. **Purpose** - What problem does this solve?
+2. **Entry points** - How do users reach this?
+3. **UI components** - What elements on screen?
+4. **Interactions** - What can users do?
+5. **States** - Empty, loading, error, success
+6. **Validation** - Input rules, constraints
+7. **Data flow** - What data, from where?
+8. **Edge cases** - Boundaries, limits
 
 ### Coverage Expectations by Page Type
 
